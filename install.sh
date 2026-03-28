@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INSTALLER_VERSION="0.1.4"
+INSTALLER_VERSION="0.1.5"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ENV="$SCRIPT_DIR/.env"
 COMPOSE_TEMPLATE="$SCRIPT_DIR/docker-compose.yml.example"
@@ -12,13 +12,8 @@ ok(){ echo "[✔] $*"; }
 warn(){ echo "[!] $*"; }
 err(){ echo "[x] $*" >&2; exit 1; }
 
-tty_print() {
-  printf '%s' "$1" > /dev/tty
-}
-
-tty_println() {
-  printf '%s\n' "$1" > /dev/tty
-}
+tty_print() { printf '%s' "$1" > /dev/tty; }
+tty_println() { printf '%s\n' "$1" > /dev/tty; }
 
 trim() {
   local s="$1"
@@ -27,12 +22,10 @@ trim() {
   printf '%s' "$s"
 }
 
-require_root() {
-  [[ "$EUID" -eq 0 ]] || err "Запусти так: sudo bash install.sh"
-}
+require_root() { [[ "$EUID" -eq 0 ]] || err "Запусти так: sudo bash install.sh"; }
 
-ask() {
-  local prompt="$1" default="${2:-}" answer
+ask_into() {
+  local __var_name="$1" prompt="$2" default="${3:-}" answer=""
   if [[ -n "$default" ]]; then
     tty_print "$prompt [$default]: "
   else
@@ -41,14 +34,14 @@ ask() {
   IFS= read -r answer < /dev/tty || true
   answer="$(trim "$answer")"
   if [[ -z "$answer" ]]; then
-    printf '%s' "$default"
+    printf -v "$__var_name" '%s' "$default"
   else
-    printf '%s' "$answer"
+    printf -v "$__var_name" '%s' "$answer"
   fi
 }
 
-ask_secret() {
-  local prompt="$1" default="${2:-}" answer
+ask_secret_into() {
+  local __var_name="$1" prompt="$2" default="${3:-}" answer=""
   if [[ -n "$default" ]]; then
     tty_print "$prompt [$default]: "
   else
@@ -58,9 +51,9 @@ ask_secret() {
   tty_println ""
   answer="$(trim "$answer")"
   if [[ -z "$answer" ]]; then
-    printf '%s' "$default"
+    printf -v "$__var_name" '%s' "$default"
   else
-    printf '%s' "$answer"
+    printf -v "$__var_name" '%s' "$answer"
   fi
 }
 
@@ -218,11 +211,7 @@ verify_required_templates(){
   [[ "$placeholders" -eq 0 ]] || err "Замени заглушки на свои проверенные SQL/Kong файлы и запусти снова"
 }
 
-start_stack(){
-  cd "$INSTALL_DIR"
-  docker compose pull
-  docker compose up -d
-}
+start_stack(){ cd "$INSTALL_DIR"; docker compose pull; docker compose up -d; }
 
 show_final(){
   echo
@@ -248,32 +237,32 @@ BANNER
   echo "   1 - домен + reverse proxy + HTTPS"
   echo "   2 - прямой доступ по IP:порт"
 
-  ACCESS_MODE="$(ask "Выберите режим" "2")"
+  ask_into ACCESS_MODE "Выберите режим" "2"
   case "$ACCESS_MODE" in
     1)
       EXTERNAL_MODE="domain"
-      EXTERNAL_HOST="$(ask "Домен" "supabase.example.com")"
+      ask_into EXTERNAL_HOST "Домен" "supabase.example.com"
       SCHEME="https"
       ;;
     2)
       EXTERNAL_MODE="ip"
-      EXTERNAL_HOST="$(ask "IP или hostname сервера")"
+      ask_into EXTERNAL_HOST "IP или hostname сервера" ""
       [[ -n "$EXTERNAL_HOST" ]] || err "IP или hostname сервера не указан"
       SCHEME="http"
       ;;
     *) err "Неверный режим" ;;
   esac
 
-  INSTALL_DIR="$(ask "Папка установки" "/opt/supabase")"
-  POSTGRES_DB="$(ask "PostgreSQL database" "postgres")"
-  DB_PUBLIC_PORT="$(ask "Внешний порт PostgreSQL" "6543")"
-  KONG_HTTP_PORT="$(ask "Внешний порт API/Kong" "8000")"
-  STUDIO_PORT="$(ask "Внешний порт Studio" "3000")"
-  JWT_EXPIRY="$(ask "JWT expiry (sec)" "3600")"
-  SERVICE_PASSWORD_POSTGRES="$(ask_secret "PostgreSQL password" "$(random_password)")"
-  SERVICE_PASSWORD_JWT="$(ask_secret "JWT secret" "$(random_hex)")"
-  SERVICE_USER_ADMIN="$(ask "Dashboard admin user" "admin")"
-  SERVICE_PASSWORD_ADMIN="$(ask_secret "Dashboard admin password" "$(random_password)")"
+  ask_into INSTALL_DIR "Папка установки" "/opt/supabase"
+  ask_into POSTGRES_DB "PostgreSQL database" "postgres"
+  ask_into DB_PUBLIC_PORT "Внешний порт PostgreSQL" "6543"
+  ask_into KONG_HTTP_PORT "Внешний порт API/Kong" "8000"
+  ask_into STUDIO_PORT "Внешний порт Studio" "3000"
+  ask_into JWT_EXPIRY "JWT expiry (sec)" "3600"
+  ask_secret_into SERVICE_PASSWORD_POSTGRES "PostgreSQL password" "$(random_password)"
+  ask_secret_into SERVICE_PASSWORD_JWT "JWT secret" "$(random_hex)"
+  ask_into SERVICE_USER_ADMIN "Dashboard admin user" "admin"
+  ask_secret_into SERVICE_PASSWORD_ADMIN "Dashboard admin password" "$(random_password)"
   if ask_yes_no "Разрешить регистрацию новых пользователей?" "Y"; then
     DISABLE_SIGNUP="false"
   else
