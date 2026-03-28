@@ -1,3 +1,9 @@
+## 0.2.2
+
+### Fixed
+- Removed blocking healthcheck from supabase-meta.
+- Changed dependencies on supabase-meta from service_healthy to service_started.
+
 ## 0.2.1
 
 - Исправлен healthcheck у supabase-meta: валидный синтаксис compose и проверка корня на 8080.
