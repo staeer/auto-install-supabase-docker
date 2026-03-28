@@ -18,6 +18,7 @@
 ## Установка
 
 ```bash
+rm -rf ~/auto-install-supabase-docker
 git clone https://github.com/staeer/auto-install-supabase-docker.git
 cd auto-install-supabase-docker
 sudo bash install.sh
@@ -49,6 +50,7 @@ sudo bash uninstall.sh
 Или для другого пути:
 
 ```bash
+rm -rf ~/auto-install-supabase-docker
 sudo bash uninstall.sh /opt/supabase
 ```
 
