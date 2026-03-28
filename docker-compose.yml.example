@@ -1,7 +1,7 @@
 services:
   supabase-db:
     image: '${SUPABASE_DB_IMAGE}'
-    container_name: supabase-db
+    container_name: db
     ports:
       - '${DB_PUBLIC_PORT}:5432'
     healthcheck:
@@ -35,6 +35,10 @@ services:
       - ./volumes/db/roles.sql:/docker-entrypoint-initdb.d/init-scripts/99-roles.sql:ro
       - ./volumes/db/jwt.sql:/docker-entrypoint-initdb.d/init-scripts/99-jwt.sql:ro
       - ./volumes/db/logs.sql:/docker-entrypoint-initdb.d/migrations/99-logs.sql:ro
+    networks:
+      default:
+        aliases:
+          - db
 
   supabase-rest:
     image: '${SUPABASE_REST_IMAGE}'
@@ -51,6 +55,10 @@ services:
       PGRST_APP_SETTINGS_JWT_SECRET: '${SERVICE_PASSWORD_JWT}'
       PGRST_APP_SETTINGS_JWT_EXP: '${JWT_EXPIRY}'
     command: postgrest
+    networks:
+      default:
+        aliases:
+          - rest
 
   supabase-auth:
     image: '${SUPABASE_AUTH_IMAGE}'
@@ -92,6 +100,10 @@ services:
       GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: '${MAILER_URLPATHS_EMAIL_CHANGE}'
       GOTRUE_EXTERNAL_PHONE_ENABLED: '${ENABLE_PHONE_SIGNUP}'
       GOTRUE_SMS_AUTOCONFIRM: '${ENABLE_PHONE_AUTOCONFIRM}'
+    networks:
+      default:
+        aliases:
+          - auth
 
   supabase-meta:
     image: '${SUPABASE_META_IMAGE}'
@@ -100,10 +112,13 @@ services:
       supabase-db:
         condition: service_healthy
     healthcheck:
-      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:8080/ >/dev/null 2>&1 || exit 1']
+      test:
+        - CMD-SHELL
+        - node -e "require('http').get('http://127.0.0.1:8080/health', (r) => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
       interval: 10s
       timeout: 5s
       retries: 10
+      start_period: 10s
     environment:
       PG_META_PORT: '8080'
       PG_META_DB_HOST: '${POSTGRES_HOSTNAME}'
@@ -111,6 +126,10 @@ services:
       PG_META_DB_NAME: '${POSTGRES_DB}'
       PG_META_DB_USER: supabase_admin
       PG_META_DB_PASSWORD: '${SERVICE_PASSWORD_POSTGRES}'
+    networks:
+      default:
+        aliases:
+          - meta
 
   supabase-kong:
     image: '${SUPABASE_KONG_IMAGE}'
@@ -120,6 +139,13 @@ services:
         condition: service_healthy
       supabase-auth:
         condition: service_healthy
+      supabase-meta:
+        condition: service_healthy
+    entrypoint:
+      - /bin/sh
+      - /home/kong/kong-entrypoint.sh
+    ports:
+      - '${KONG_HTTP_PORT}:8000'
     environment:
       KONG_DATABASE: 'off'
       KONG_DECLARATIVE_CONFIG: /home/kong/kong.yml
@@ -131,18 +157,9 @@ services:
       SUPABASE_SERVICE_KEY: '${SERVICE_SUPABASESERVICE_KEY}'
       DASHBOARD_USERNAME: '${SERVICE_USER_ADMIN}'
       DASHBOARD_PASSWORD: '${SERVICE_PASSWORD_ADMIN}'
-      SUPABASE_PUBLISHABLE_KEY: '${SUPABASE_PUBLISHABLE_KEY}'
-      SUPABASE_SECRET_KEY: '${SUPABASE_SECRET_KEY}'
-      SERVICE_ROLE_KEY_ASYMMETRIC: '${SERVICE_ROLE_KEY_ASYMMETRIC:-${SERVICE_SUPABASESERVICE_KEY}}'
-      ANON_KEY_ASYMMETRIC: '${ANON_KEY_ASYMMETRIC:-${SERVICE_SUPABASEANON_KEY}}'
-    ports:
-      - '${KONG_HTTP_PORT}:8000'
     volumes:
       - ./volumes/api/kong.yml:/home/kong/temp.yml:ro
       - ./volumes/api/kong-entrypoint.sh:/home/kong/kong-entrypoint.sh:ro
-    entrypoint:
-      - /bin/sh
-      - /home/kong/kong-entrypoint.sh
 
   supabase-studio:
     image: '${SUPABASE_STUDIO_IMAGE}'
@@ -152,13 +169,15 @@ services:
         condition: service_healthy
       supabase-meta:
         condition: service_healthy
+      supabase-kong:
+        condition: service_started
     healthcheck:
       test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3000/api/platform/profile').then((r) => {if (r.status !== 200) throw new Error(r.status)})"]
       timeout: 5s
       interval: 5s
       retries: 3
     ports:
-      - '${STUDIO_BIND_PORT:-127.0.0.1:3000}:3000'
+      - '127.0.0.1:${STUDIO_PORT}:3000'
     environment:
       HOSTNAME: 0.0.0.0
       STUDIO_PG_META_URL: http://meta:8080
@@ -175,6 +194,10 @@ services:
       NEXT_PUBLIC_ENABLE_LOGS: 'false'
       NEXT_ANALYTICS_BACKEND_PROVIDER: postgres
       OPENAI_API_KEY: '${OPENAI_API_KEY}'
+    networks:
+      default:
+        aliases:
+          - studio
 
 volumes:
   supabase-db-data:
