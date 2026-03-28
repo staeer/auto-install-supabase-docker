@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INSTALLER_VERSION="0.1.3"
+INSTALLER_VERSION="0.1.4"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ENV="$SCRIPT_DIR/.env"
 COMPOSE_TEMPLATE="$SCRIPT_DIR/docker-compose.yml.example"
@@ -11,6 +11,14 @@ log(){ echo "[i] $*"; }
 ok(){ echo "[✔] $*"; }
 warn(){ echo "[!] $*"; }
 err(){ echo "[x] $*" >&2; exit 1; }
+
+tty_print() {
+  printf '%s' "$1" > /dev/tty
+}
+
+tty_println() {
+  printf '%s\n' "$1" > /dev/tty
+}
 
 trim() {
   local s="$1"
@@ -26,10 +34,11 @@ require_root() {
 ask() {
   local prompt="$1" default="${2:-}" answer
   if [[ -n "$default" ]]; then
-    read -r -p "$prompt [$default]: " answer < /dev/tty || true
+    tty_print "$prompt [$default]: "
   else
-    read -r -p "$prompt: " answer < /dev/tty || true
+    tty_print "$prompt: "
   fi
+  IFS= read -r answer < /dev/tty || true
   answer="$(trim "$answer")"
   if [[ -z "$answer" ]]; then
     printf '%s' "$default"
@@ -41,11 +50,12 @@ ask() {
 ask_secret() {
   local prompt="$1" default="${2:-}" answer
   if [[ -n "$default" ]]; then
-    read -r -s -p "$prompt [$default]: " answer < /dev/tty || true
+    tty_print "$prompt [$default]: "
   else
-    read -r -s -p "$prompt: " answer < /dev/tty || true
+    tty_print "$prompt: "
   fi
-  printf '\n' > /dev/tty
+  IFS= read -r -s answer < /dev/tty || true
+  tty_println ""
   answer="$(trim "$answer")"
   if [[ -z "$answer" ]]; then
     printf '%s' "$default"
@@ -61,7 +71,8 @@ ask_yes_no() {
   else
     shown='[y/N]'
   fi
-  read -r -p "$prompt $shown: " answer < /dev/tty || true
+  tty_print "$prompt $shown: "
+  IFS= read -r answer < /dev/tty || true
   answer="$(trim "$answer")"
   answer="${answer:-$default}"
   case "${answer,,}" in
@@ -71,8 +82,8 @@ ask_yes_no() {
   esac
 }
 
-random_hex(){ openssl rand -hex 32; }
-random_password(){ openssl rand -hex 16; }
+random_hex(){ openssl rand -hex 32 | tr -d '\r\n'; }
+random_password(){ openssl rand -hex 16 | tr -d '\r\n'; }
 
 ensure_requirements(){
   [[ -f "$COMPOSE_TEMPLATE" ]] || err "Не найден $COMPOSE_TEMPLATE"
