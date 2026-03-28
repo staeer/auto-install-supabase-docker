@@ -1,5 +1,6 @@
 services:
   supabase-db:
+    restart: unless-stopped
     image: '${SUPABASE_DB_IMAGE}'
     container_name: db
     ports:
@@ -40,6 +41,7 @@ services:
         aliases: [db]
 
   supabase-rest:
+    restart: unless-stopped
     image: '${SUPABASE_REST_IMAGE}'
     container_name: rest
     depends_on:
@@ -59,6 +61,7 @@ services:
         aliases: [rest]
 
   supabase-auth:
+    restart: unless-stopped
     image: '${SUPABASE_AUTH_IMAGE}'
     container_name: auth
     depends_on:
@@ -103,6 +106,7 @@ services:
         aliases: [auth]
 
   supabase-meta:
+    restart: unless-stopped
     image: '${SUPABASE_META_IMAGE}'
     container_name: meta
     depends_on:
@@ -120,6 +124,7 @@ services:
         aliases: [meta]
 
   supabase-kong:
+    restart: unless-stopped
     image: '${SUPABASE_KONG_IMAGE}'
     container_name: supabase-kong
     depends_on:
@@ -159,6 +164,7 @@ services:
         aliases: [supabase-kong]
 
   supabase-studio:
+    restart: unless-stopped
     image: '${SUPABASE_STUDIO_IMAGE}'
     container_name: studio
     depends_on:
