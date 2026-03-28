@@ -1,19 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INSTALLER_VERSION="0.1.5"
+INSTALLER_VERSION="0.1.6"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ENV="$SCRIPT_DIR/.env"
 COMPOSE_TEMPLATE="$SCRIPT_DIR/docker-compose.yml.example"
-BACKUP_DIR_NAME="backups"
+INSTALL_DIR_DEFAULT="/opt/supabase"
 
 log(){ echo "[i] $*"; }
 ok(){ echo "[✔] $*"; }
 warn(){ echo "[!] $*"; }
 err(){ echo "[x] $*" >&2; exit 1; }
-
-tty_print() { printf '%s' "$1" > /dev/tty; }
-tty_println() { printf '%s\n' "$1" > /dev/tty; }
 
 trim() {
   local s="$1"
@@ -22,14 +19,16 @@ trim() {
   printf '%s' "$s"
 }
 
-require_root() { [[ "$EUID" -eq 0 ]] || err "Запусти так: sudo bash install.sh"; }
+require_root() {
+  [[ "$EUID" -eq 0 ]] || err "Запусти так: sudo bash install.sh"
+}
 
 ask_into() {
-  local __var_name="$1" prompt="$2" default="${3:-}" answer=""
+  local __var_name="$1" prompt="$2" default="${3-}" answer
   if [[ -n "$default" ]]; then
-    tty_print "$prompt [$default]: "
+    printf '%s [%s]: ' "$prompt" "$default" > /dev/tty
   else
-    tty_print "$prompt: "
+    printf '%s: ' "$prompt" > /dev/tty
   fi
   IFS= read -r answer < /dev/tty || true
   answer="$(trim "$answer")"
@@ -40,15 +39,29 @@ ask_into() {
   fi
 }
 
+ask_required_into() {
+  local __var_name="$1" prompt="$2" answer
+  while true; do
+    printf '%s: ' "$prompt" > /dev/tty
+    IFS= read -r answer < /dev/tty || true
+    answer="$(trim "$answer")"
+    if [[ -n "$answer" ]]; then
+      printf -v "$__var_name" '%s' "$answer"
+      return 0
+    fi
+    warn "Поле не должно быть пустым"
+  done
+}
+
 ask_secret_into() {
-  local __var_name="$1" prompt="$2" default="${3:-}" answer=""
+  local __var_name="$1" prompt="$2" default="${3-}" answer
   if [[ -n "$default" ]]; then
-    tty_print "$prompt [$default]: "
+    printf '%s [%s]: ' "$prompt" "$default" > /dev/tty
   else
-    tty_print "$prompt: "
+    printf '%s: ' "$prompt" > /dev/tty
   fi
   IFS= read -r -s answer < /dev/tty || true
-  tty_println ""
+  printf '\n' > /dev/tty
   answer="$(trim "$answer")"
   if [[ -z "$answer" ]]; then
     printf -v "$__var_name" '%s' "$default"
@@ -64,32 +77,36 @@ ask_yes_no() {
   else
     shown='[y/N]'
   fi
-  tty_print "$prompt $shown: "
+  printf '%s %s: ' "$prompt" "$shown" > /dev/tty
   IFS= read -r answer < /dev/tty || true
   answer="$(trim "$answer")"
   answer="${answer:-$default}"
   case "${answer,,}" in
     y|yes) return 0 ;;
     n|no) return 1 ;;
-    *) [[ "$default" == "Y" ]] && return 0 || return 1 ;;
+    *) [[ "$default" == "Y" ]] ;;
   esac
 }
 
-random_hex(){ openssl rand -hex 32 | tr -d '\r\n'; }
-random_password(){ openssl rand -hex 16 | tr -d '\r\n'; }
+random_hex16() { openssl rand -hex 16 | tr -d '\r\n'; }
+random_hex32() { openssl rand -hex 32 | tr -d '\r\n'; }
 
-ensure_requirements(){
+ensure_requirements() {
   [[ -f "$COMPOSE_TEMPLATE" ]] || err "Не найден $COMPOSE_TEMPLATE"
-  if ! command -v python3 >/dev/null 2>&1 || ! command -v openssl >/dev/null 2>&1; then
+  if ! command -v openssl >/dev/null 2>&1; then
     apt-get update >/dev/null 2>&1
-    apt-get install -y python3 openssl >/dev/null 2>&1
+    apt-get install -y openssl >/dev/null 2>&1
+  fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    apt-get update >/dev/null 2>&1
+    apt-get install -y python3 >/dev/null 2>&1
   fi
 }
 
-ensure_docker(){
+ensure_docker() {
   if command -v docker >/dev/null 2>&1 && docker compose version >/dev/null 2>&1; then
     ok "Docker уже установлен"
-    return
+    return 0
   fi
   log "Установка Docker..."
   apt-get update >/dev/null 2>&1
@@ -99,7 +116,7 @@ ensure_docker(){
   ok "Docker установлен"
 }
 
-generate_jwt(){
+generate_jwt() {
   local secret="$1" role="$2"
   python3 - "$secret" "$role" <<'PY'
 import base64, json, hmac, hashlib, sys, time
@@ -107,11 +124,13 @@ secret = sys.argv[1].encode()
 role = sys.argv[2]
 header = {"alg": "HS256", "typ": "JWT"}
 payload = {"role": role, "iss": "supabase", "iat": int(time.time()), "exp": 2524608000}
-def b64url(data):
+
+def b64url(data: bytes) -> bytes:
     return base64.urlsafe_b64encode(data).rstrip(b'=')
+
 segments = [
     b64url(json.dumps(header, separators=(',', ':')).encode()),
-    b64url(json.dumps(payload, separators=(',', ':')).encode())
+    b64url(json.dumps(payload, separators=(',', ':')).encode()),
 ]
 signing_input = b'.'.join(segments)
 signature = b64url(hmac.new(secret, signing_input, hashlib.sha256).digest())
@@ -119,7 +138,7 @@ print((signing_input + b'.' + signature).decode())
 PY
 }
 
-validate_env(){
+validate_env() {
   local bad
   bad="$(grep -nEv '^[A-Z0-9_]+=.*$|^#|^$' "$PROJECT_ENV" || true)"
   if [[ -n "$bad" ]]; then
@@ -128,8 +147,8 @@ validate_env(){
   fi
 }
 
-write_env(){
-  cat > "$PROJECT_ENV" <<EOF_ENV
+write_env() {
+  cat > "$PROJECT_ENV" <<EOFENV
 STACK_VERSION=$INSTALLER_VERSION
 INSTALL_DIR=$INSTALL_DIR
 SUPABASE_DB_IMAGE=supabase/postgres:15.8.1.048
@@ -179,127 +198,133 @@ STUDIO_DEFAULT_ORGANIZATION=Default Organization
 STUDIO_DEFAULT_PROJECT=Default Project
 OPENAI_API_KEY=
 PGRST_DB_SCHEMAS=public,storage,graphql_public
-EOF_ENV
+EOFENV
   chmod 600 "$PROJECT_ENV"
 }
 
-prepare_dirs(){
-  mkdir -p "$INSTALL_DIR/volumes/db/data" "$INSTALL_DIR/volumes/db/custom" "$INSTALL_DIR/volumes/api" "$INSTALL_DIR/$BACKUP_DIR_NAME"
-  chown -R 999:999 "$INSTALL_DIR/volumes/db/data"
-  chmod -R 755 "$INSTALL_DIR/volumes/db/data" "$INSTALL_DIR/volumes/db/custom" "$INSTALL_DIR/volumes/api"
-}
-
-copy_project_files(){
-  cp "$COMPOSE_TEMPLATE" "$INSTALL_DIR/docker-compose.yml"
-  cp "$PROJECT_ENV" "$INSTALL_DIR/.env"
-  for f in realtime.sql _supabase.sql pooler.sql webhooks.sql roles.sql jwt.sql logs.sql; do
-    [[ -f "$SCRIPT_DIR/volumes/db/$f" ]] || err "Не найден $SCRIPT_DIR/volumes/db/$f"
-    cp "$SCRIPT_DIR/volumes/db/$f" "$INSTALL_DIR/volumes/db/$f"
-  done
-  [[ -f "$SCRIPT_DIR/volumes/api/kong.yml" ]] || err "Не найден $SCRIPT_DIR/volumes/api/kong.yml"
-  cp "$SCRIPT_DIR/volumes/api/kong.yml" "$INSTALL_DIR/volumes/api/kong.yml"
-}
-
-verify_required_templates(){
-  local placeholders=0
-  for f in "$SCRIPT_DIR"/volumes/db/*.sql "$SCRIPT_DIR"/volumes/api/kong.yml; do
-    if grep -q 'PLACEHOLDER_REPLACE_ME' "$f"; then
-      warn "Заглушка не заменена: $f"
-      placeholders=1
+check_required_assets() {
+  local missing=0
+  local files=(
+    "$SCRIPT_DIR/volumes/db/realtime.sql"
+    "$SCRIPT_DIR/volumes/db/_supabase.sql"
+    "$SCRIPT_DIR/volumes/db/pooler.sql"
+    "$SCRIPT_DIR/volumes/db/webhooks.sql"
+    "$SCRIPT_DIR/volumes/db/roles.sql"
+    "$SCRIPT_DIR/volumes/db/jwt.sql"
+    "$SCRIPT_DIR/volumes/db/logs.sql"
+    "$SCRIPT_DIR/volumes/api/kong.yml"
+  )
+  for f in "${files[@]}"; do
+    [[ -f "$f" ]] || { warn "Не найден файл: $f"; missing=1; }
+    if [[ -f "$f" ]] && grep -q 'PLACEHOLDER_REPLACE_ME' "$f"; then
+      warn "Файл содержит заглушку и требует замены: $f"
+      missing=1
     fi
   done
-  [[ "$placeholders" -eq 0 ]] || err "Замени заглушки на свои проверенные SQL/Kong файлы и запусти снова"
+  [[ $missing -eq 0 ]] || err "Замени заглушки в volumes/db/*.sql и volumes/api/kong.yml"
 }
 
-start_stack(){ cd "$INSTALL_DIR"; docker compose pull; docker compose up -d; }
+install_files() {
+  mkdir -p "$INSTALL_DIR"
+  cp "$PROJECT_ENV" "$INSTALL_DIR/.env"
+  cp "$COMPOSE_TEMPLATE" "$INSTALL_DIR/docker-compose.yml"
+  mkdir -p "$INSTALL_DIR/volumes/db" "$INSTALL_DIR/volumes/api"
+  cp "$SCRIPT_DIR/volumes/db/"*.sql "$INSTALL_DIR/volumes/db/"
+  cp "$SCRIPT_DIR/volumes/api/kong.yml" "$INSTALL_DIR/volumes/api/kong.yml"
+  chmod 600 "$INSTALL_DIR/.env"
+}
 
-show_final(){
+show_summary() {
   echo
-  ok "Установка завершена"
-  echo "  API/Kong:   $SERVICE_URL_SUPABASEKONG"
-  echo "  Studio:     http://$EXTERNAL_HOST:$STUDIO_PORT"
-  echo "  Postgres:   $EXTERNAL_HOST:$DB_PUBLIC_PORT"
+  log "Итоговые параметры:"
+  echo "  режим:            $EXTERNAL_MODE"
+  echo "  host:             $EXTERNAL_HOST"
+  echo "  install dir:      $INSTALL_DIR"
+  echo "  postgres db:      $POSTGRES_DB"
+  echo "  postgres port:    $DB_PUBLIC_PORT"
+  echo "  api/kong port:    $KONG_HTTP_PORT"
+  echo "  studio port:      $STUDIO_PORT"
+  echo "  signup allowed:   $([[ "$DISABLE_SIGNUP" == "true" ]] && echo no || echo yes)"
+  echo "  public url:       $SERVICE_URL_SUPABASEKONG"
   echo
 }
 
-main(){
+start_stack() {
+  cd "$INSTALL_DIR"
+  docker compose pull
+  docker compose up -d
+}
+
+main() {
   require_root
   ensure_requirements
 
   clear || true
-  cat <<'BANNER'
+  cat <<'EOFBANNER'
 ╔══════════════════════════════════════════════╗
 ║   Supabase lightweight интерактивная установка   ║
 ╚══════════════════════════════════════════════╝
-BANNER
+EOFBANNER
   echo
   echo "1) Внешний доступ:"
   echo "   1 - домен + reverse proxy + HTTPS"
   echo "   2 - прямой доступ по IP:порт"
 
-  ask_into ACCESS_MODE "Выберите режим" "2"
-  case "$ACCESS_MODE" in
+  ask_into MODE "Выберите режим" "2"
+  case "$MODE" in
     1)
       EXTERNAL_MODE="domain"
-      ask_into EXTERNAL_HOST "Домен" "supabase.example.com"
-      SCHEME="https"
+      ask_required_into EXTERNAL_HOST "Домен Supabase"
       ;;
     2)
       EXTERNAL_MODE="ip"
-      ask_into EXTERNAL_HOST "IP или hostname сервера" ""
-      [[ -n "$EXTERNAL_HOST" ]] || err "IP или hostname сервера не указан"
-      SCHEME="http"
+      ask_required_into EXTERNAL_HOST "IP или hostname сервера"
       ;;
-    *) err "Неверный режим" ;;
+    *) err "Неверный режим. Выбери 1 или 2." ;;
   esac
 
-  ask_into INSTALL_DIR "Папка установки" "/opt/supabase"
+  ask_into INSTALL_DIR "Папка установки" "$INSTALL_DIR_DEFAULT"
   ask_into POSTGRES_DB "PostgreSQL database" "postgres"
-  ask_into DB_PUBLIC_PORT "Внешний порт PostgreSQL" "6543"
+  ask_into DB_PUBLIC_PORT "Внешний порт Postgres" "6543"
   ask_into KONG_HTTP_PORT "Внешний порт API/Kong" "8000"
   ask_into STUDIO_PORT "Внешний порт Studio" "3000"
   ask_into JWT_EXPIRY "JWT expiry (sec)" "3600"
-  ask_secret_into SERVICE_PASSWORD_POSTGRES "PostgreSQL password" "$(random_password)"
-  ask_secret_into SERVICE_PASSWORD_JWT "JWT secret" "$(random_hex)"
+  ask_secret_into SERVICE_PASSWORD_POSTGRES "PostgreSQL password" "$(random_hex16)"
+  ask_secret_into SERVICE_PASSWORD_JWT "JWT secret" "$(random_hex32)"
   ask_into SERVICE_USER_ADMIN "Dashboard admin user" "admin"
-  ask_secret_into SERVICE_PASSWORD_ADMIN "Dashboard admin password" "$(random_password)"
+  ask_secret_into SERVICE_PASSWORD_ADMIN "Dashboard admin password" "$(random_hex16)"
+
   if ask_yes_no "Разрешить регистрацию новых пользователей?" "Y"; then
     DISABLE_SIGNUP="false"
   else
     DISABLE_SIGNUP="true"
   fi
 
-  SERVICE_URL_SUPABASEKONG="$SCHEME://$EXTERNAL_HOST:$KONG_HTTP_PORT"
-  SERVICE_SUPABASEANON_KEY="$(generate_jwt "$SERVICE_PASSWORD_JWT" anon)"
-  SERVICE_SUPABASESERVICE_KEY="$(generate_jwt "$SERVICE_PASSWORD_JWT" service_role)"
+  if [[ "$EXTERNAL_MODE" == "domain" ]]; then
+    SERVICE_URL_SUPABASEKONG="https://$EXTERNAL_HOST"
+  else
+    SERVICE_URL_SUPABASEKONG="http://$EXTERNAL_HOST:$KONG_HTTP_PORT"
+  fi
 
-  echo
-  log "Итоговые параметры:"
-  echo "  install dir:      $INSTALL_DIR"
-  echo "  external mode:    $EXTERNAL_MODE"
-  echo "  external host:    $EXTERNAL_HOST"
-  echo "  postgres db:      $POSTGRES_DB"
-  echo "  postgres public:  $DB_PUBLIC_PORT"
-  echo "  api/kong public:  $KONG_HTTP_PORT"
-  echo "  studio public:    $STUDIO_PORT"
-  echo "  service url:      $SERVICE_URL_SUPABASEKONG"
-  echo "  signup disabled:  $DISABLE_SIGNUP"
-  echo
+  SERVICE_SUPABASEANON_KEY="$(generate_jwt "$SERVICE_PASSWORD_JWT" anon | tr -d '\r\n')"
+  SERVICE_SUPABASESERVICE_KEY="$(generate_jwt "$SERVICE_PASSWORD_JWT" service_role | tr -d '\r\n')"
 
+  show_summary
   ask_yes_no "Сохранить эти настройки в .env и продолжить?" "Y" || err "Отменено"
+
   write_env
   validate_env
   ok ".env сохранён: $PROJECT_ENV"
 
   ask_yes_no "Начать установку?" "Y" || err "Отменено"
-  verify_required_templates
+  check_required_assets
   ensure_docker
-  prepare_dirs
-  copy_project_files
+  install_files
   cd "$INSTALL_DIR"
-  validate_env
   start_stack
-  show_final
+  ok "Установка завершена"
+  echo "Studio: http://$EXTERNAL_HOST:$STUDIO_PORT"
+  echo "API:    $SERVICE_URL_SUPABASEKONG"
 }
 
 main "$@"

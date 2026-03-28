@@ -1,6 +1,6 @@
 services:
   supabase-db:
-    image: ${SUPABASE_DB_IMAGE}
+    image: '${SUPABASE_DB_IMAGE}'
     container_name: supabase-db
     ports:
       - '${DB_PUBLIC_PORT}:5432'
@@ -17,17 +17,17 @@ services:
       - log_min_messages=fatal
     environment:
       POSTGRES_HOST: /var/run/postgresql
-      PGPORT: ${POSTGRES_PORT}
-      POSTGRES_PORT: ${POSTGRES_PORT}
-      PGPASSWORD: ${SERVICE_PASSWORD_POSTGRES}
-      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_POSTGRES}
-      PGDATABASE: ${POSTGRES_DB}
-      POSTGRES_DB: ${POSTGRES_DB}
-      JWT_SECRET: ${SERVICE_PASSWORD_JWT}
-      JWT_EXP: ${JWT_EXPIRY}
+      PGPORT: '${POSTGRES_PORT}'
+      POSTGRES_PORT: '${POSTGRES_PORT}'
+      PGPASSWORD: '${SERVICE_PASSWORD_POSTGRES}'
+      POSTGRES_PASSWORD: '${SERVICE_PASSWORD_POSTGRES}'
+      PGDATABASE: '${POSTGRES_DB}'
+      POSTGRES_DB: '${POSTGRES_DB}'
+      JWT_SECRET: '${SERVICE_PASSWORD_JWT}'
+      JWT_EXP: '${JWT_EXPIRY}'
     volumes:
-      - ./volumes/db/data:/var/lib/postgresql/data
-      - ./volumes/db/custom:/etc/postgresql-custom
+      - supabase-db-data:/var/lib/postgresql/data
+      - supabase-db-config:/etc/postgresql-custom
       - ./volumes/db/realtime.sql:/docker-entrypoint-initdb.d/migrations/99-realtime.sql:ro
       - ./volumes/db/_supabase.sql:/docker-entrypoint-initdb.d/migrations/97-_supabase.sql:ro
       - ./volumes/db/pooler.sql:/docker-entrypoint-initdb.d/migrations/99-pooler.sql:ro
@@ -37,23 +37,23 @@ services:
       - ./volumes/db/logs.sql:/docker-entrypoint-initdb.d/migrations/99-logs.sql:ro
 
   supabase-rest:
-    image: ${SUPABASE_REST_IMAGE}
+    image: '${SUPABASE_REST_IMAGE}'
     container_name: supabase-rest
     depends_on:
       supabase-db:
         condition: service_healthy
     environment:
-      PGRST_DB_URI: postgres://authenticator:${SERVICE_PASSWORD_POSTGRES}@${POSTGRES_HOSTNAME}:${POSTGRES_PORT}/${POSTGRES_DB}
-      PGRST_DB_SCHEMAS: ${PGRST_DB_SCHEMAS}
+      PGRST_DB_URI: 'postgres://authenticator:${SERVICE_PASSWORD_POSTGRES}@${POSTGRES_HOSTNAME}:${POSTGRES_PORT}/${POSTGRES_DB}'
+      PGRST_DB_SCHEMAS: '${PGRST_DB_SCHEMAS}'
       PGRST_DB_ANON_ROLE: anon
-      PGRST_JWT_SECRET: ${SERVICE_PASSWORD_JWT}
+      PGRST_JWT_SECRET: '${SERVICE_PASSWORD_JWT}'
       PGRST_DB_USE_LEGACY_GUCS: 'false'
-      PGRST_APP_SETTINGS_JWT_SECRET: ${SERVICE_PASSWORD_JWT}
-      PGRST_APP_SETTINGS_JWT_EXP: ${JWT_EXPIRY}
+      PGRST_APP_SETTINGS_JWT_SECRET: '${SERVICE_PASSWORD_JWT}'
+      PGRST_APP_SETTINGS_JWT_EXP: '${JWT_EXPIRY}'
     command: postgrest
 
   supabase-auth:
-    image: ${SUPABASE_AUTH_IMAGE}
+    image: '${SUPABASE_AUTH_IMAGE}'
     container_name: supabase-auth
     depends_on:
       supabase-db:
@@ -65,50 +65,50 @@ services:
       retries: 3
     environment:
       GOTRUE_API_HOST: 0.0.0.0
-      GOTRUE_API_PORT: 9999
-      API_EXTERNAL_URL: ${API_EXTERNAL_URL}
+      GOTRUE_API_PORT: '9999'
+      API_EXTERNAL_URL: '${API_EXTERNAL_URL}'
       GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${SERVICE_PASSWORD_POSTGRES}@${POSTGRES_HOSTNAME}:${POSTGRES_PORT}/${POSTGRES_DB}
-      GOTRUE_SITE_URL: ${SERVICE_URL_SUPABASEKONG}
-      GOTRUE_URI_ALLOW_LIST: ${ADDITIONAL_REDIRECT_URLS}
-      GOTRUE_DISABLE_SIGNUP: ${DISABLE_SIGNUP}
+      GOTRUE_DB_DATABASE_URL: 'postgres://supabase_auth_admin:${SERVICE_PASSWORD_POSTGRES}@${POSTGRES_HOSTNAME}:${POSTGRES_PORT}/${POSTGRES_DB}'
+      GOTRUE_SITE_URL: '${SERVICE_URL_SUPABASEKONG}'
+      GOTRUE_URI_ALLOW_LIST: '${ADDITIONAL_REDIRECT_URLS}'
+      GOTRUE_DISABLE_SIGNUP: '${DISABLE_SIGNUP}'
       GOTRUE_JWT_ADMIN_ROLES: service_role
       GOTRUE_JWT_AUD: authenticated
       GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
-      GOTRUE_JWT_EXP: ${JWT_EXPIRY}
-      GOTRUE_JWT_SECRET: ${SERVICE_PASSWORD_JWT}
-      GOTRUE_EXTERNAL_EMAIL_ENABLED: ${ENABLE_EMAIL_SIGNUP}
-      GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: ${ENABLE_ANONYMOUS_USERS}
-      GOTRUE_MAILER_AUTOCONFIRM: ${ENABLE_EMAIL_AUTOCONFIRM}
-      GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL}
-      GOTRUE_SMTP_HOST: ${SMTP_HOST}
-      GOTRUE_SMTP_PORT: ${SMTP_PORT}
-      GOTRUE_SMTP_USER: ${SMTP_USER}
-      GOTRUE_SMTP_PASS: ${SMTP_PASS}
-      GOTRUE_SMTP_SENDER_NAME: ${SMTP_SENDER_NAME}
-      GOTRUE_MAILER_URLPATHS_INVITE: ${MAILER_URLPATHS_INVITE}
-      GOTRUE_MAILER_URLPATHS_CONFIRMATION: ${MAILER_URLPATHS_CONFIRMATION}
-      GOTRUE_MAILER_URLPATHS_RECOVERY: ${MAILER_URLPATHS_RECOVERY}
-      GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: ${MAILER_URLPATHS_EMAIL_CHANGE}
-      GOTRUE_EXTERNAL_PHONE_ENABLED: ${ENABLE_PHONE_SIGNUP}
-      GOTRUE_SMS_AUTOCONFIRM: ${ENABLE_PHONE_AUTOCONFIRM}
+      GOTRUE_JWT_EXP: '${JWT_EXPIRY}'
+      GOTRUE_JWT_SECRET: '${SERVICE_PASSWORD_JWT}'
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: '${ENABLE_EMAIL_SIGNUP}'
+      GOTRUE_EXTERNAL_ANONYMOUS_USERS_ENABLED: '${ENABLE_ANONYMOUS_USERS}'
+      GOTRUE_MAILER_AUTOCONFIRM: '${ENABLE_EMAIL_AUTOCONFIRM}'
+      GOTRUE_SMTP_ADMIN_EMAIL: '${SMTP_ADMIN_EMAIL}'
+      GOTRUE_SMTP_HOST: '${SMTP_HOST}'
+      GOTRUE_SMTP_PORT: '${SMTP_PORT}'
+      GOTRUE_SMTP_USER: '${SMTP_USER}'
+      GOTRUE_SMTP_PASS: '${SMTP_PASS}'
+      GOTRUE_SMTP_SENDER_NAME: '${SMTP_SENDER_NAME}'
+      GOTRUE_MAILER_URLPATHS_INVITE: '${MAILER_URLPATHS_INVITE}'
+      GOTRUE_MAILER_URLPATHS_CONFIRMATION: '${MAILER_URLPATHS_CONFIRMATION}'
+      GOTRUE_MAILER_URLPATHS_RECOVERY: '${MAILER_URLPATHS_RECOVERY}'
+      GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: '${MAILER_URLPATHS_EMAIL_CHANGE}'
+      GOTRUE_EXTERNAL_PHONE_ENABLED: '${ENABLE_PHONE_SIGNUP}'
+      GOTRUE_SMS_AUTOCONFIRM: '${ENABLE_PHONE_AUTOCONFIRM}'
 
   supabase-meta:
-    image: ${SUPABASE_META_IMAGE}
+    image: '${SUPABASE_META_IMAGE}'
     container_name: supabase-meta
     depends_on:
       supabase-db:
         condition: service_healthy
     environment:
-      PG_META_PORT: 8080
-      PG_META_DB_HOST: ${POSTGRES_HOSTNAME}
-      PG_META_DB_PORT: ${POSTGRES_PORT}
-      PG_META_DB_NAME: ${POSTGRES_DB}
+      PG_META_PORT: '8080'
+      PG_META_DB_HOST: '${POSTGRES_HOSTNAME}'
+      PG_META_DB_PORT: '${POSTGRES_PORT}'
+      PG_META_DB_NAME: '${POSTGRES_DB}'
       PG_META_DB_USER: supabase_admin
-      PG_META_DB_PASSWORD: ${SERVICE_PASSWORD_POSTGRES}
+      PG_META_DB_PASSWORD: '${SERVICE_PASSWORD_POSTGRES}'
 
   supabase-kong:
-    image: ${SUPABASE_KONG_IMAGE}
+    image: '${SUPABASE_KONG_IMAGE}'
     container_name: supabase-kong
     depends_on:
       supabase-db:
@@ -119,48 +119,52 @@ services:
     ports:
       - '${KONG_HTTP_PORT}:8000'
     environment:
-      SERVICE_URL_SUPABASEKONG_8000: ${SERVICE_URL_SUPABASEKONG_8000}
-      KONG_PORT_MAPS: 443:8000
-      JWT_SECRET: ${SERVICE_PASSWORD_JWT}
+      SERVICE_URL_SUPABASEKONG_8000: '${SERVICE_URL_SUPABASEKONG_8000}'
+      KONG_PORT_MAPS: '443:8000'
+      JWT_SECRET: '${SERVICE_PASSWORD_JWT}'
       KONG_DATABASE: off
       KONG_DECLARATIVE_CONFIG: /home/kong/kong.yml
       KONG_DNS_ORDER: LAST,A,CNAME
       KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth
       KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
-      KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
-      SUPABASE_ANON_KEY: ${SERVICE_SUPABASEANON_KEY}
-      SUPABASE_SERVICE_KEY: ${SERVICE_SUPABASESERVICE_KEY}
-      DASHBOARD_USERNAME: ${SERVICE_USER_ADMIN}
-      DASHBOARD_PASSWORD: ${SERVICE_PASSWORD_ADMIN}
+      KONG_NGINX_PROXY_PROXY_BUFFERS: '64 160k'
+      SUPABASE_ANON_KEY: '${SERVICE_SUPABASEANON_KEY}'
+      SUPABASE_SERVICE_KEY: '${SERVICE_SUPABASESERVICE_KEY}'
+      DASHBOARD_USERNAME: '${SERVICE_USER_ADMIN}'
+      DASHBOARD_PASSWORD: '${SERVICE_PASSWORD_ADMIN}'
     volumes:
       - ./volumes/api/kong.yml:/home/kong/temp.yml:ro
 
   supabase-studio:
-    image: ${SUPABASE_STUDIO_IMAGE}
+    image: '${SUPABASE_STUDIO_IMAGE}'
     container_name: supabase-studio
     depends_on:
       supabase-db:
         condition: service_healthy
-    ports:
-      - '${STUDIO_PORT}:3000'
     healthcheck:
       test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3000/api/platform/profile').then((r) => {if (r.status !== 200) throw new Error(r.status)})"]
       timeout: 5s
       interval: 5s
       retries: 3
+    ports:
+      - '${STUDIO_PORT}:3000'
     environment:
       HOSTNAME: 0.0.0.0
       STUDIO_PG_META_URL: http://supabase-meta:8080
-      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_POSTGRES}
-      POSTGRES_HOST: ${POSTGRES_HOST}
-      CURRENT_CLI_VERSION: ${STUDIO_CLI_VERSION}
-      DEFAULT_ORGANIZATION_NAME: ${STUDIO_DEFAULT_ORGANIZATION}
-      DEFAULT_PROJECT_NAME: ${STUDIO_DEFAULT_PROJECT}
+      POSTGRES_PASSWORD: '${SERVICE_PASSWORD_POSTGRES}'
+      POSTGRES_HOST: '${POSTGRES_HOST}'
+      CURRENT_CLI_VERSION: '${STUDIO_CLI_VERSION}'
+      DEFAULT_ORGANIZATION_NAME: '${STUDIO_DEFAULT_ORGANIZATION}'
+      DEFAULT_PROJECT_NAME: '${STUDIO_DEFAULT_PROJECT}'
       SUPABASE_URL: http://supabase-kong:8000
-      SUPABASE_PUBLIC_URL: ${SERVICE_URL_SUPABASEKONG}
-      SUPABASE_ANON_KEY: ${SERVICE_SUPABASEANON_KEY}
-      SUPABASE_SERVICE_KEY: ${SERVICE_SUPABASESERVICE_KEY}
-      AUTH_JWT_SECRET: ${SERVICE_PASSWORD_JWT}
+      SUPABASE_PUBLIC_URL: '${SERVICE_URL_SUPABASEKONG}'
+      SUPABASE_ANON_KEY: '${SERVICE_SUPABASEANON_KEY}'
+      SUPABASE_SERVICE_KEY: '${SERVICE_SUPABASESERVICE_KEY}'
+      AUTH_JWT_SECRET: '${SERVICE_PASSWORD_JWT}'
       NEXT_PUBLIC_ENABLE_LOGS: 'false'
       NEXT_ANALYTICS_BACKEND_PROVIDER: postgres
-      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_API_KEY: '${OPENAI_API_KEY}'
+
+volumes:
+  supabase-db-data:
+  supabase-db-config:
