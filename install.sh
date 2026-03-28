@@ -15,15 +15,23 @@ err(){ echo "[x] $*" >&2; exit 1; }
 trim(){ local s="$1"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
 require_root(){ [[ "$EUID" -eq 0 ]] || err "Запусти так: sudo bash install.sh"; }
 
-ask(){
-  local p="$1" d="${2:-}" a
-  if [[ -n "$d" ]]; then
-    read -r -p "$p [$d]: " a || true
-    a="$(trim "$a")"
-    printf '%s' "${a:-$d}"
+ask() {
+  local prompt="$1"
+  local default="${2:-}"
+  local answer
+
+  if [[ -n "$default" ]]; then
+    read -r -p "$prompt [$default]: " answer < /dev/tty
   else
-    read -r -p "$p: " a || true
-    printf '%s' "$(trim "$a")"
+    read -r -p "$prompt: " answer < /dev/tty
+  fi
+
+  answer="$(trim "$answer")"
+
+  if [[ -z "$answer" ]]; then
+    printf '%s' "$default"
+  else
+    printf '%s' "$answer"
   fi
 }
 
@@ -38,14 +46,20 @@ ask_required(){
 }
 
 ask_secret() {
-  local prompt="$1" default="${2:-}" answer
+  local prompt="$1"
+  local default="${2:-}"
+  local answer
+
   if [[ -n "$default" ]]; then
-    read -r -s -p "$prompt [$default]: " answer || true
+    read -r -s -p "$prompt [$default]: " answer < /dev/tty
   else
-    read -r -s -p "$prompt: " answer || true
+    read -r -s -p "$prompt: " answer < /dev/tty
   fi
-  echo >&2
+
+  printf '\n' > /dev/tty
+
   answer="$(trim "$answer")"
+
   if [[ -z "$answer" ]]; then
     printf '%s' "$default"
   else
