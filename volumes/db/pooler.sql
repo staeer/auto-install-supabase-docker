@@ -1,1 +1,2 @@
--- placeholder: replace with verified pooler.sql
+-- PLACEHOLDER_REPLACE_ME
+-- Замени этот файл своим проверенным SQL из рабочего стека перед установкой.
