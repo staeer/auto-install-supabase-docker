@@ -1,3 +1,10 @@
+## 0.2.3
+
+### Fixed
+- Исправлен `volumes/api/kong-entrypoint.sh`: запуск Kong теперь идёт через `/docker-entrypoint.sh`, из-за чего контейнер больше не падает с `Exited (127)`.
+- Обновлён `docker-compose.yml.example` под рабочий `kong-entrypoint.sh`.
+- Сохранены правки интерактивного установщика и безопасного `uninstall.sh`.
+
 ## 0.2.2
 
 ### Fixed

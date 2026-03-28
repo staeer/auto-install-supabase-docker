@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INSTALLER_VERSION="0.2.0"
+INSTALLER_VERSION="0.2.3"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ENV="$SCRIPT_DIR/.env"
 COMPOSE_TEMPLATE="$SCRIPT_DIR/docker-compose.yml.example"
@@ -188,8 +188,8 @@ MAILER_URLPATHS_INVITE=/auth/v1/verify
 MAILER_URLPATHS_CONFIRMATION=/auth/v1/verify
 MAILER_URLPATHS_RECOVERY=/auth/v1/verify
 MAILER_URLPATHS_EMAIL_CHANGE=/auth/v1/verify
-STUDIO_DEFAULT_ORGANIZATION=Default Organization
-STUDIO_DEFAULT_PROJECT=Default Project
+STUDIO_DEFAULT_ORGANIZATION="Default Organization"
+STUDIO_DEFAULT_PROJECT="Default Project"
 OPENAI_API_KEY=
 PGRST_DB_SCHEMAS=public,storage,graphql_public
 EOFENV
@@ -237,7 +237,7 @@ show_summary() {
   echo "  postgres db:          $POSTGRES_DB"
   echo "  postgres port:        $DB_PUBLIC_PORT"
   echo "  api/kong port:        $KONG_HTTP_PORT"
-  echo "  studio local port:    $STUDIO_PORT"
+  echo "  studio local port:    127.0.0.1:$STUDIO_PORT"
   echo "  signup allowed:       $([[ "$DISABLE_SIGNUP" == "true" ]] && echo no || echo yes)"
   echo "  public url:           $SERVICE_URL_SUPABASEKONG"
   echo
