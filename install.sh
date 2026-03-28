@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INSTALLER_VERSION="0.1.6"
+INSTALLER_VERSION="0.1.7"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ENV="$SCRIPT_DIR/.env"
 COMPOSE_TEMPLATE="$SCRIPT_DIR/docker-compose.yml.example"
@@ -216,12 +216,8 @@ check_required_assets() {
   )
   for f in "${files[@]}"; do
     [[ -f "$f" ]] || { warn "Не найден файл: $f"; missing=1; }
-    if [[ -f "$f" ]] && grep -q 'PLACEHOLDER_REPLACE_ME' "$f"; then
-      warn "Файл содержит заглушку и требует замены: $f"
-      missing=1
-    fi
   done
-  [[ $missing -eq 0 ]] || err "Замени заглушки в volumes/db/*.sql и volumes/api/kong.yml"
+  [[ $missing -eq 0 ]] || err "Не хватает файлов в volumes/db или volumes/api"
 }
 
 install_files() {

@@ -16,7 +16,20 @@ sudo bash install.sh
 sudo bash uninstall.sh
 ```
 
+## Что входит
+
+- PostgreSQL
+- PostgREST
+- GoTrue
+- Postgres Meta
+- Kong
+- Supabase Studio
+
 ## Важно
 
-Файлы `volumes/db/*.sql` и `volumes/api/kong.yml` в этом архиве содержат заглушки.
-Замени их на свои проверенные рабочие файлы перед установкой.
+Установщик ожидает, что в репозитории уже лежат реальные файлы:
+
+- `volumes/db/*.sql`
+- `volumes/api/kong.yml`
+
+Если любого из этих файлов нет, установка остановится с ошибкой.
