@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INSTALLER_VERSION="0.1.2"
+INSTALLER_VERSION="0.1.3"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ENV="$SCRIPT_DIR/.env"
 COMPOSE_TEMPLATE="$SCRIPT_DIR/docker-compose.yml.example"
@@ -12,54 +12,41 @@ ok(){ echo "[✔] $*"; }
 warn(){ echo "[!] $*"; }
 err(){ echo "[x] $*" >&2; exit 1; }
 
-trim(){ local s="$1"; s="${s#"${s%%[![:space:]]*}"}"; s="${s%"${s##*[![:space:]]}"}"; printf '%s' "$s"; }
-require_root(){ [[ "$EUID" -eq 0 ]] || err "Запусти так: sudo bash install.sh"; }
+trim() {
+  local s="$1"
+  s="${s#"${s%%[![:space:]]*}"}"
+  s="${s%"${s##*[![:space:]]}"}"
+  printf '%s' "$s"
+}
+
+require_root() {
+  [[ "$EUID" -eq 0 ]] || err "Запусти так: sudo bash install.sh"
+}
 
 ask() {
-  local prompt="$1"
-  local default="${2:-}"
-  local answer
-
+  local prompt="$1" default="${2:-}" answer
   if [[ -n "$default" ]]; then
-    read -r -p "$prompt [$default]: " answer < /dev/tty
+    read -r -p "$prompt [$default]: " answer < /dev/tty || true
   else
-    read -r -p "$prompt: " answer < /dev/tty
+    read -r -p "$prompt: " answer < /dev/tty || true
   fi
-
   answer="$(trim "$answer")"
-
   if [[ -z "$answer" ]]; then
     printf '%s' "$default"
   else
     printf '%s' "$answer"
   fi
-}
-
-ask_required(){
-  local p="$1" a
-  while true; do
-    read -r -p "$p: " a || true
-    a="$(trim "$a")"
-    [[ -n "$a" ]] && { printf '%s' "$a"; return; }
-    warn "Поле не должно быть пустым"
-  done
 }
 
 ask_secret() {
-  local prompt="$1"
-  local default="${2:-}"
-  local answer
-
+  local prompt="$1" default="${2:-}" answer
   if [[ -n "$default" ]]; then
-    read -r -s -p "$prompt [$default]: " answer < /dev/tty
+    read -r -s -p "$prompt [$default]: " answer < /dev/tty || true
   else
-    read -r -s -p "$prompt: " answer < /dev/tty
+    read -r -s -p "$prompt: " answer < /dev/tty || true
   fi
-
   printf '\n' > /dev/tty
-
   answer="$(trim "$answer")"
-
   if [[ -z "$answer" ]]; then
     printf '%s' "$default"
   else
@@ -67,16 +54,20 @@ ask_secret() {
   fi
 }
 
-ask_yes_no(){
-  local p="$1" d="${2:-Y}" a shown
-  [[ "$d" == "Y" ]] && shown='[Y/n]' || shown='[y/N]'
-  read -r -p "$p $shown: " a || true
-  a="$(trim "$a")"
-  a="${a:-$d}"
-  case "${a,,}" in
+ask_yes_no() {
+  local prompt="$1" default="${2:-Y}" answer shown
+  if [[ "$default" == "Y" ]]; then
+    shown='[Y/n]'
+  else
+    shown='[y/N]'
+  fi
+  read -r -p "$prompt $shown: " answer < /dev/tty || true
+  answer="$(trim "$answer")"
+  answer="${answer:-$default}"
+  case "${answer,,}" in
     y|yes) return 0 ;;
     n|no) return 1 ;;
-    *) [[ "$d" == "Y" ]] ;;
+    *) [[ "$default" == "Y" ]] && return 0 || return 1 ;;
   esac
 }
 
@@ -85,13 +76,9 @@ random_password(){ openssl rand -hex 16; }
 
 ensure_requirements(){
   [[ -f "$COMPOSE_TEMPLATE" ]] || err "Не найден $COMPOSE_TEMPLATE"
-  if ! command -v python3 >/dev/null 2>&1; then
-    apt-get update
-    apt-get install -y python3 >/dev/null 2>&1
-  fi
-  if ! command -v openssl >/dev/null 2>&1; then
-    apt-get update
-    apt-get install -y openssl >/dev/null 2>&1
+  if ! command -v python3 >/dev/null 2>&1 || ! command -v openssl >/dev/null 2>&1; then
+    apt-get update >/dev/null 2>&1
+    apt-get install -y python3 openssl >/dev/null 2>&1
   fi
 }
 
@@ -101,7 +88,7 @@ ensure_docker(){
     return
   fi
   log "Установка Docker..."
-  apt-get update
+  apt-get update >/dev/null 2>&1
   apt-get install -y ca-certificates curl gnupg >/dev/null 2>&1
   curl -fsSL https://get.docker.com | sh
   systemctl enable --now docker
@@ -114,19 +101,31 @@ generate_jwt(){
 import base64, json, hmac, hashlib, sys, time
 secret = sys.argv[1].encode()
 role = sys.argv[2]
-header = {"alg":"HS256","typ":"JWT"}
+header = {"alg": "HS256", "typ": "JWT"}
 payload = {"role": role, "iss": "supabase", "iat": int(time.time()), "exp": 2524608000}
 def b64url(data):
     return base64.urlsafe_b64encode(data).rstrip(b'=')
-segments = [b64url(json.dumps(header,separators=(',',':')).encode()), b64url(json.dumps(payload,separators=(',',':')).encode())]
+segments = [
+    b64url(json.dumps(header, separators=(',', ':')).encode()),
+    b64url(json.dumps(payload, separators=(',', ':')).encode())
+]
 signing_input = b'.'.join(segments)
 signature = b64url(hmac.new(secret, signing_input, hashlib.sha256).digest())
 print((signing_input + b'.' + signature).decode())
 PY
 }
 
+validate_env(){
+  local bad
+  bad="$(grep -nEv '^[A-Z0-9_]+=.*$|^#|^$' "$PROJECT_ENV" || true)"
+  if [[ -n "$bad" ]]; then
+    echo "$bad"
+    err ".env поврежден"
+  fi
+}
+
 write_env(){
-cat > "$PROJECT_ENV" <<EOF_ENV
+  cat > "$PROJECT_ENV" <<EOF_ENV
 STACK_VERSION=$INSTALLER_VERSION
 INSTALL_DIR=$INSTALL_DIR
 SUPABASE_DB_IMAGE=supabase/postgres:15.8.1.048
@@ -149,41 +148,35 @@ STUDIO_PORT=$STUDIO_PORT
 EXTERNAL_MODE=$EXTERNAL_MODE
 EXTERNAL_HOST=$EXTERNAL_HOST
 SERVICE_URL_SUPABASEKONG=$SERVICE_URL_SUPABASEKONG
-SERVICE_URL_SUPABASEKONG_8000=$SERVICE_URL_SUPABASEKONG_8000
-API_EXTERNAL_URL=$API_EXTERNAL_URL
-ADDITIONAL_REDIRECT_URLS=$ADDITIONAL_REDIRECT_URLS
+SERVICE_URL_SUPABASEKONG_8000=$SERVICE_URL_SUPABASEKONG
+API_EXTERNAL_URL=$SERVICE_URL_SUPABASEKONG
+ADDITIONAL_REDIRECT_URLS=
 SERVICE_USER_ADMIN=$SERVICE_USER_ADMIN
 SERVICE_PASSWORD_ADMIN=$SERVICE_PASSWORD_ADMIN
 SERVICE_SUPABASEANON_KEY=$SERVICE_SUPABASEANON_KEY
 SERVICE_SUPABASESERVICE_KEY=$SERVICE_SUPABASESERVICE_KEY
 DISABLE_SIGNUP=$DISABLE_SIGNUP
-ENABLE_EMAIL_SIGNUP=$ENABLE_EMAIL_SIGNUP
-ENABLE_ANONYMOUS_USERS=$ENABLE_ANONYMOUS_USERS
-ENABLE_EMAIL_AUTOCONFIRM=$ENABLE_EMAIL_AUTOCONFIRM
-ENABLE_PHONE_SIGNUP=$ENABLE_PHONE_SIGNUP
-ENABLE_PHONE_AUTOCONFIRM=$ENABLE_PHONE_AUTOCONFIRM
-SMTP_ADMIN_EMAIL=$SMTP_ADMIN_EMAIL
-SMTP_HOST=$SMTP_HOST
-SMTP_PORT=$SMTP_PORT
-SMTP_USER=$SMTP_USER
-SMTP_PASS=$SMTP_PASS
-SMTP_SENDER_NAME=$SMTP_SENDER_NAME
+ENABLE_EMAIL_SIGNUP=true
+ENABLE_ANONYMOUS_USERS=false
+ENABLE_EMAIL_AUTOCONFIRM=false
+ENABLE_PHONE_SIGNUP=true
+ENABLE_PHONE_AUTOCONFIRM=true
+SMTP_ADMIN_EMAIL=
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_USER=
+SMTP_PASS=
+SMTP_SENDER_NAME=
 MAILER_URLPATHS_INVITE=/auth/v1/verify
 MAILER_URLPATHS_CONFIRMATION=/auth/v1/verify
 MAILER_URLPATHS_RECOVERY=/auth/v1/verify
 MAILER_URLPATHS_EMAIL_CHANGE=/auth/v1/verify
-STUDIO_DEFAULT_ORGANIZATION=$STUDIO_DEFAULT_ORGANIZATION
-STUDIO_DEFAULT_PROJECT=$STUDIO_DEFAULT_PROJECT
-OPENAI_API_KEY=$OPENAI_API_KEY
+STUDIO_DEFAULT_ORGANIZATION=Default Organization
+STUDIO_DEFAULT_PROJECT=Default Project
+OPENAI_API_KEY=
 PGRST_DB_SCHEMAS=public,storage,graphql_public
 EOF_ENV
-chmod 600 "$PROJECT_ENV"
-}
-
-validate_env(){
-  local bad
-  bad="$(grep -nEv '^[A-Z0-9_]+=.*$|^#|^$' "$PROJECT_ENV" || true)"
-  [[ -z "$bad" ]] || { echo "$bad"; err ".env поврежден"; }
+  chmod 600 "$PROJECT_ENV"
 }
 
 prepare_dirs(){
@@ -195,7 +188,6 @@ prepare_dirs(){
 copy_project_files(){
   cp "$COMPOSE_TEMPLATE" "$INSTALL_DIR/docker-compose.yml"
   cp "$PROJECT_ENV" "$INSTALL_DIR/.env"
-  chmod 600 "$INSTALL_DIR/.env"
   for f in realtime.sql _supabase.sql pooler.sql webhooks.sql roles.sql jwt.sql logs.sql; do
     [[ -f "$SCRIPT_DIR/volumes/db/$f" ]] || err "Не найден $SCRIPT_DIR/volumes/db/$f"
     cp "$SCRIPT_DIR/volumes/db/$f" "$INSTALL_DIR/volumes/db/$f"
@@ -233,16 +225,18 @@ show_final(){
 main(){
   require_root
   ensure_requirements
+
   clear || true
   cat <<'BANNER'
-╔══════════════════════════════════════════════════╗
-║   Supabase lightweight интерактивная установка  ║
-╚══════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════╗
+║   Supabase lightweight интерактивная установка   ║
+╚══════════════════════════════════════════════╝
 BANNER
   echo
   echo "1) Внешний доступ:"
   echo "   1 - домен + reverse proxy + HTTPS"
   echo "   2 - прямой доступ по IP:порт"
+
   ACCESS_MODE="$(ask "Выберите режим" "2")"
   case "$ACCESS_MODE" in
     1)
@@ -252,7 +246,8 @@ BANNER
       ;;
     2)
       EXTERNAL_MODE="ip"
-      EXTERNAL_HOST="$(ask_required "IP или hostname сервера")"
+      EXTERNAL_HOST="$(ask "IP или hostname сервера")"
+      [[ -n "$EXTERNAL_HOST" ]] || err "IP или hostname сервера не указан"
       SCHEME="http"
       ;;
     *) err "Неверный режим" ;;
@@ -273,25 +268,8 @@ BANNER
   else
     DISABLE_SIGNUP="true"
   fi
-  ENABLE_EMAIL_SIGNUP="true"
-  ENABLE_ANONYMOUS_USERS="false"
-  ENABLE_EMAIL_AUTOCONFIRM="false"
-  ENABLE_PHONE_SIGNUP="true"
-  ENABLE_PHONE_AUTOCONFIRM="true"
-  SMTP_ADMIN_EMAIL="$(ask "SMTP admin email" "")"
-  SMTP_HOST="$(ask "SMTP host" "")"
-  SMTP_PORT="$(ask "SMTP port" "587")"
-  SMTP_USER="$(ask "SMTP user" "")"
-  SMTP_PASS="$(ask_secret "SMTP pass" "")"
-  SMTP_SENDER_NAME="$(ask "SMTP sender name" "")"
-  STUDIO_DEFAULT_ORGANIZATION="$(ask "Studio organization" "Default Organization")"
-  STUDIO_DEFAULT_PROJECT="$(ask "Studio project" "Default Project")"
-  OPENAI_API_KEY="$(ask_secret "OpenAI API key" "")"
 
   SERVICE_URL_SUPABASEKONG="$SCHEME://$EXTERNAL_HOST:$KONG_HTTP_PORT"
-  SERVICE_URL_SUPABASEKONG_8000="$SERVICE_URL_SUPABASEKONG"
-  API_EXTERNAL_URL="$SERVICE_URL_SUPABASEKONG"
-  ADDITIONAL_REDIRECT_URLS=""
   SERVICE_SUPABASEANON_KEY="$(generate_jwt "$SERVICE_PASSWORD_JWT" anon)"
   SERVICE_SUPABASESERVICE_KEY="$(generate_jwt "$SERVICE_PASSWORD_JWT" service_role)"
 
@@ -312,10 +290,14 @@ BANNER
   write_env
   validate_env
   ok ".env сохранён: $PROJECT_ENV"
+
+  ask_yes_no "Начать установку?" "Y" || err "Отменено"
   verify_required_templates
   ensure_docker
   prepare_dirs
   copy_project_files
+  cd "$INSTALL_DIR"
+  validate_env
   start_stack
   show_final
 }

@@ -1,24 +1,6 @@
 # auto-install-supabase-docker
 
-Интерактивный установщик облегчённого self-hosted Supabase на Docker Compose.
-
-## Что внутри
-
-- PostgreSQL
-- PostgREST
-- GoTrue (Auth)
-- Postgres Meta
-- Kong
-- Studio
-
-## Важно
-
-В репо лежат **заглушки** для:
-
-- `volumes/db/*.sql`
-- `volumes/api/kong.yml`
-
-Перед установкой замени их своими **проверенными** файлами. Иначе `install.sh` остановится с ошибкой.
+Интерактивный установщик облегчённого Supabase через Docker Compose.
 
 ## Установка
 
@@ -28,14 +10,21 @@ cd auto-install-supabase-docker
 sudo bash install.sh
 ```
 
+Установщик:
+- спрашивает режим доступа: домен/HTTPS или IP:порт
+- генерирует пароли и JWT ключ
+- пишет `.env`
+- проверяет `.env`
+- копирует compose и SQL/Kong файлы
+- запускает стек
+
+## Важно
+
+Файлы в `volumes/db/*.sql` и `volumes/api/kong.yml` должны быть твоими рабочими файлами.
+Если там остались заглушки `PLACEHOLDER_REPLACE_ME`, установщик остановится.
+
 ## Удаление
 
 ```bash
 sudo bash uninstall.sh
-```
-
-или
-
-```bash
-sudo bash uninstall.sh /opt/supabase
 ```
