@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-INSTALLER_VERSION="0.1.7"
+INSTALLER_VERSION="0.1.8"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ENV="$SCRIPT_DIR/.env"
 COMPOSE_TEMPLATE="$SCRIPT_DIR/docker-compose.yml.example"
@@ -124,10 +124,8 @@ secret = sys.argv[1].encode()
 role = sys.argv[2]
 header = {"alg": "HS256", "typ": "JWT"}
 payload = {"role": role, "iss": "supabase", "iat": int(time.time()), "exp": 2524608000}
-
 def b64url(data: bytes) -> bytes:
     return base64.urlsafe_b64encode(data).rstrip(b'=')
-
 segments = [
     b64url(json.dumps(header, separators=(',', ':')).encode()),
     b64url(json.dumps(payload, separators=(',', ':')).encode()),
@@ -145,6 +143,25 @@ validate_env() {
     echo "$bad"
     err ".env поврежден"
   fi
+}
+
+check_required_assets() {
+  local missing=0
+  local files=(
+    "$SCRIPT_DIR/volumes/db/realtime.sql"
+    "$SCRIPT_DIR/volumes/db/_supabase.sql"
+    "$SCRIPT_DIR/volumes/db/pooler.sql"
+    "$SCRIPT_DIR/volumes/db/webhooks.sql"
+    "$SCRIPT_DIR/volumes/db/roles.sql"
+    "$SCRIPT_DIR/volumes/db/jwt.sql"
+    "$SCRIPT_DIR/volumes/db/logs.sql"
+    "$SCRIPT_DIR/volumes/api/kong.yml"
+    "$SCRIPT_DIR/volumes/api/kong-entrypoint.sh"
+  )
+  for f in "${files[@]}"; do
+    [[ -f "$f" ]] || { warn "Не найден файл: $f"; missing=1; }
+  done
+  [[ $missing -eq 0 ]] || err "Отсутствуют обязательные файлы в volumes/db или volumes/api"
 }
 
 write_env() {
@@ -167,7 +184,7 @@ SERVICE_PASSWORD_POSTGRES=$SERVICE_PASSWORD_POSTGRES
 SERVICE_PASSWORD_JWT=$SERVICE_PASSWORD_JWT
 JWT_EXPIRY=$JWT_EXPIRY
 KONG_HTTP_PORT=$KONG_HTTP_PORT
-STUDIO_PORT=$STUDIO_PORT
+STUDIO_BIND_PORT=$STUDIO_BIND_PORT
 EXTERNAL_MODE=$EXTERNAL_MODE
 EXTERNAL_HOST=$EXTERNAL_HOST
 SERVICE_URL_SUPABASEKONG=$SERVICE_URL_SUPABASEKONG
@@ -198,26 +215,12 @@ STUDIO_DEFAULT_ORGANIZATION=Default Organization
 STUDIO_DEFAULT_PROJECT=Default Project
 OPENAI_API_KEY=
 PGRST_DB_SCHEMAS=public,storage,graphql_public
+SUPABASE_PUBLISHABLE_KEY=
+SUPABASE_SECRET_KEY=
+SERVICE_ROLE_KEY_ASYMMETRIC=
+ANON_KEY_ASYMMETRIC=
 EOFENV
   chmod 600 "$PROJECT_ENV"
-}
-
-check_required_assets() {
-  local missing=0
-  local files=(
-    "$SCRIPT_DIR/volumes/db/realtime.sql"
-    "$SCRIPT_DIR/volumes/db/_supabase.sql"
-    "$SCRIPT_DIR/volumes/db/pooler.sql"
-    "$SCRIPT_DIR/volumes/db/webhooks.sql"
-    "$SCRIPT_DIR/volumes/db/roles.sql"
-    "$SCRIPT_DIR/volumes/db/jwt.sql"
-    "$SCRIPT_DIR/volumes/db/logs.sql"
-    "$SCRIPT_DIR/volumes/api/kong.yml"
-  )
-  for f in "${files[@]}"; do
-    [[ -f "$f" ]] || { warn "Не найден файл: $f"; missing=1; }
-  done
-  [[ $missing -eq 0 ]] || err "Не хватает файлов в volumes/db или volumes/api"
 }
 
 install_files() {
@@ -227,7 +230,9 @@ install_files() {
   mkdir -p "$INSTALL_DIR/volumes/db" "$INSTALL_DIR/volumes/api"
   cp "$SCRIPT_DIR/volumes/db/"*.sql "$INSTALL_DIR/volumes/db/"
   cp "$SCRIPT_DIR/volumes/api/kong.yml" "$INSTALL_DIR/volumes/api/kong.yml"
+  cp "$SCRIPT_DIR/volumes/api/kong-entrypoint.sh" "$INSTALL_DIR/volumes/api/kong-entrypoint.sh"
   chmod 600 "$INSTALL_DIR/.env"
+  chmod +x "$INSTALL_DIR/volumes/api/kong-entrypoint.sh"
 }
 
 show_summary() {
@@ -239,7 +244,7 @@ show_summary() {
   echo "  postgres db:      $POSTGRES_DB"
   echo "  postgres port:    $DB_PUBLIC_PORT"
   echo "  api/kong port:    $KONG_HTTP_PORT"
-  echo "  studio port:      $STUDIO_PORT"
+  echo "  studio наружу:    нет"
   echo "  signup allowed:   $([[ "$DISABLE_SIGNUP" == "true" ]] && echo no || echo yes)"
   echo "  public url:       $SERVICE_URL_SUPABASEKONG"
   echo
@@ -256,11 +261,11 @@ main() {
   ensure_requirements
 
   clear || true
-  cat <<'EOFBANNER'
+  cat <<'EOB'
 ╔══════════════════════════════════════════════╗
 ║   Supabase lightweight интерактивная установка   ║
 ╚══════════════════════════════════════════════╝
-EOFBANNER
+EOB
   echo
   echo "1) Внешний доступ:"
   echo "   1 - домен + reverse proxy + HTTPS"
@@ -283,17 +288,15 @@ EOFBANNER
   ask_into POSTGRES_DB "PostgreSQL database" "postgres"
   ask_into DB_PUBLIC_PORT "Внешний порт Postgres" "6543"
   ask_into KONG_HTTP_PORT "Внешний порт API/Kong" "8000"
-  ask_into STUDIO_PORT "Внешний порт Studio" "3000"
   ask_into JWT_EXPIRY "JWT expiry (sec)" "3600"
   ask_secret_into SERVICE_PASSWORD_POSTGRES "PostgreSQL password" "$(random_hex16)"
   ask_secret_into SERVICE_PASSWORD_JWT "JWT secret" "$(random_hex32)"
   ask_into SERVICE_USER_ADMIN "Dashboard admin user" "admin"
   ask_secret_into SERVICE_PASSWORD_ADMIN "Dashboard admin password" "$(random_hex16)"
-
   if ask_yes_no "Разрешить регистрацию новых пользователей?" "Y"; then
-    DISABLE_SIGNUP="false"
+    DISABLE_SIGNUP=false
   else
-    DISABLE_SIGNUP="true"
+    DISABLE_SIGNUP=true
   fi
 
   if [[ "$EXTERNAL_MODE" == "domain" ]]; then
@@ -301,9 +304,10 @@ EOFBANNER
   else
     SERVICE_URL_SUPABASEKONG="http://$EXTERNAL_HOST:$KONG_HTTP_PORT"
   fi
+  STUDIO_BIND_PORT="127.0.0.1:3000"
 
-  SERVICE_SUPABASEANON_KEY="$(generate_jwt "$SERVICE_PASSWORD_JWT" anon | tr -d '\r\n')"
-  SERVICE_SUPABASESERVICE_KEY="$(generate_jwt "$SERVICE_PASSWORD_JWT" service_role | tr -d '\r\n')"
+  SERVICE_SUPABASEANON_KEY="$(generate_jwt "$SERVICE_PASSWORD_JWT" anon)"
+  SERVICE_SUPABASESERVICE_KEY="$(generate_jwt "$SERVICE_PASSWORD_JWT" service_role)"
 
   show_summary
   ask_yes_no "Сохранить эти настройки в .env и продолжить?" "Y" || err "Отменено"
@@ -313,14 +317,19 @@ EOFBANNER
   ok ".env сохранён: $PROJECT_ENV"
 
   ask_yes_no "Начать установку?" "Y" || err "Отменено"
+
   check_required_assets
   ensure_docker
   install_files
   cd "$INSTALL_DIR"
+  docker compose config >/dev/null
   start_stack
+
+  echo
   ok "Установка завершена"
-  echo "Studio: http://$EXTERNAL_HOST:$STUDIO_PORT"
-  echo "API:    $SERVICE_URL_SUPABASEKONG"
+  echo "Supabase/Kong:      $SERVICE_URL_SUPABASEKONG"
+  echo "Postgres:           $EXTERNAL_HOST:$DB_PUBLIC_PORT"
+  echo "Локальная Studio:   http://127.0.0.1:3000"
 }
 
 main "$@"

@@ -1,35 +1,16 @@
 # auto-install-supabase-docker
 
-Интерактивный установщик облегчённого self-hosted Supabase через Docker Compose.
+Интерактивный установщик облегчённого Supabase.
 
-## Установка
-
+Установка:
 ```bash
-git clone https://github.com/staeer/auto-install-supabase-docker.git
+git clone <repo>
 cd auto-install-supabase-docker
 sudo bash install.sh
 ```
 
-## Удаление
+Публикуется наружу:
+- Kong/API: `8000`
+- PostgreSQL: `6543`
 
-```bash
-sudo bash uninstall.sh
-```
-
-## Что входит
-
-- PostgreSQL
-- PostgREST
-- GoTrue
-- Postgres Meta
-- Kong
-- Supabase Studio
-
-## Важно
-
-Установщик ожидает, что в репозитории уже лежат реальные файлы:
-
-- `volumes/db/*.sql`
-- `volumes/api/kong.yml`
-
-Если любого из этих файлов нет, установка остановится с ошибкой.
+Studio наружу не публикуется. Через Kong открывай `http://HOST:8000`, локально на сервере Studio доступна на `http://127.0.0.1:3000`.

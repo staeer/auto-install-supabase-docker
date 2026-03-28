@@ -38,7 +38,7 @@ services:
 
   supabase-rest:
     image: '${SUPABASE_REST_IMAGE}'
-    container_name: supabase-rest
+    container_name: rest
     depends_on:
       supabase-db:
         condition: service_healthy
@@ -54,7 +54,7 @@ services:
 
   supabase-auth:
     image: '${SUPABASE_AUTH_IMAGE}'
-    container_name: supabase-auth
+    container_name: auth
     depends_on:
       supabase-db:
         condition: service_healthy
@@ -95,10 +95,15 @@ services:
 
   supabase-meta:
     image: '${SUPABASE_META_IMAGE}'
-    container_name: supabase-meta
+    container_name: meta
     depends_on:
       supabase-db:
         condition: service_healthy
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://127.0.0.1:8080/ >/dev/null 2>&1 || exit 1']
+      interval: 10s
+      timeout: 5s
+      retries: 10
     environment:
       PG_META_PORT: '8080'
       PG_META_DB_HOST: '${POSTGRES_HOSTNAME}'
@@ -115,31 +120,37 @@ services:
         condition: service_healthy
       supabase-auth:
         condition: service_healthy
-    entrypoint: bash -c 'eval "echo "$$(cat ~/temp.yml)"" > ~/kong.yml && /docker-entrypoint.sh kong docker-start'
-    ports:
-      - '${KONG_HTTP_PORT}:8000'
     environment:
-      SERVICE_URL_SUPABASEKONG_8000: '${SERVICE_URL_SUPABASEKONG_8000}'
-      KONG_PORT_MAPS: '443:8000'
-      JWT_SECRET: '${SERVICE_PASSWORD_JWT}'
-      KONG_DATABASE: off
+      KONG_DATABASE: 'off'
       KONG_DECLARATIVE_CONFIG: /home/kong/kong.yml
       KONG_DNS_ORDER: LAST,A,CNAME
-      KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl,basic-auth,request-termination,post-function
       KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
       KONG_NGINX_PROXY_PROXY_BUFFERS: '64 160k'
       SUPABASE_ANON_KEY: '${SERVICE_SUPABASEANON_KEY}'
       SUPABASE_SERVICE_KEY: '${SERVICE_SUPABASESERVICE_KEY}'
       DASHBOARD_USERNAME: '${SERVICE_USER_ADMIN}'
       DASHBOARD_PASSWORD: '${SERVICE_PASSWORD_ADMIN}'
+      SUPABASE_PUBLISHABLE_KEY: '${SUPABASE_PUBLISHABLE_KEY}'
+      SUPABASE_SECRET_KEY: '${SUPABASE_SECRET_KEY}'
+      SERVICE_ROLE_KEY_ASYMMETRIC: '${SERVICE_ROLE_KEY_ASYMMETRIC:-${SERVICE_SUPABASESERVICE_KEY}}'
+      ANON_KEY_ASYMMETRIC: '${ANON_KEY_ASYMMETRIC:-${SERVICE_SUPABASEANON_KEY}}'
+    ports:
+      - '${KONG_HTTP_PORT}:8000'
     volumes:
       - ./volumes/api/kong.yml:/home/kong/temp.yml:ro
+      - ./volumes/api/kong-entrypoint.sh:/home/kong/kong-entrypoint.sh:ro
+    entrypoint:
+      - /bin/sh
+      - /home/kong/kong-entrypoint.sh
 
   supabase-studio:
     image: '${SUPABASE_STUDIO_IMAGE}'
-    container_name: supabase-studio
+    container_name: studio
     depends_on:
       supabase-db:
+        condition: service_healthy
+      supabase-meta:
         condition: service_healthy
     healthcheck:
       test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3000/api/platform/profile').then((r) => {if (r.status !== 200) throw new Error(r.status)})"]
@@ -147,10 +158,10 @@ services:
       interval: 5s
       retries: 3
     ports:
-      - '${STUDIO_PORT}:3000'
+      - '${STUDIO_BIND_PORT:-127.0.0.1:3000}:3000'
     environment:
       HOSTNAME: 0.0.0.0
-      STUDIO_PG_META_URL: http://supabase-meta:8080
+      STUDIO_PG_META_URL: http://meta:8080
       POSTGRES_PASSWORD: '${SERVICE_PASSWORD_POSTGRES}'
       POSTGRES_HOST: '${POSTGRES_HOST}'
       CURRENT_CLI_VERSION: '${STUDIO_CLI_VERSION}'
