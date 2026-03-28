@@ -37,19 +37,19 @@ ask_required(){
   done
 }
 
-ask_secret(){
-  local p="$1" d="${2:-}" a
-  if [[ -n "$d" ]]; then
-    read -r -s -p "$p [$d]: " a || true
+ask_secret() {
+  local prompt="$1" default="${2:-}" answer
+  if [[ -n "$default" ]]; then
+    read -r -s -p "$prompt [$default]: " answer || true
   else
-    read -r -s -p "$p: " a || true
+    read -r -s -p "$prompt: " answer || true
   fi
-  printf '\n' >&2
-  a="$(trim "$a")"
-  if [[ -z "$a" ]]; then
-    printf '%s' "$d"
+  echo >&2
+  answer="$(trim "$answer")"
+  if [[ -z "$answer" ]]; then
+    printf '%s' "$default"
   else
-    printf '%s' "$a"
+    printf '%s' "$answer"
   fi
 }
 
