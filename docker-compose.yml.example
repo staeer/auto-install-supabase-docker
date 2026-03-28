@@ -37,8 +37,7 @@ services:
       - ./volumes/db/logs.sql:/docker-entrypoint-initdb.d/migrations/99-logs.sql:ro
     networks:
       default:
-        aliases:
-          - db
+        aliases: [db]
 
   supabase-rest:
     image: '${SUPABASE_REST_IMAGE}'
@@ -47,7 +46,7 @@ services:
       supabase-db:
         condition: service_healthy
     environment:
-      PGRST_DB_URI: 'postgres://authenticator:${SERVICE_PASSWORD_POSTGRES}@${POSTGRES_HOSTNAME}:${POSTGRES_PORT}/${POSTGRES_DB}'
+      PGRST_DB_URI: 'postgres://authenticator:${SERVICE_PASSWORD_POSTGRES}@db:${POSTGRES_PORT}/${POSTGRES_DB}'
       PGRST_DB_SCHEMAS: '${PGRST_DB_SCHEMAS}'
       PGRST_DB_ANON_ROLE: anon
       PGRST_JWT_SECRET: '${SERVICE_PASSWORD_JWT}'
@@ -57,8 +56,7 @@ services:
     command: postgrest
     networks:
       default:
-        aliases:
-          - rest
+        aliases: [rest]
 
   supabase-auth:
     image: '${SUPABASE_AUTH_IMAGE}'
@@ -76,7 +74,7 @@ services:
       GOTRUE_API_PORT: '9999'
       API_EXTERNAL_URL: '${API_EXTERNAL_URL}'
       GOTRUE_DB_DRIVER: postgres
-      GOTRUE_DB_DATABASE_URL: 'postgres://supabase_auth_admin:${SERVICE_PASSWORD_POSTGRES}@${POSTGRES_HOSTNAME}:${POSTGRES_PORT}/${POSTGRES_DB}'
+      GOTRUE_DB_DATABASE_URL: 'postgres://supabase_auth_admin:${SERVICE_PASSWORD_POSTGRES}@db:${POSTGRES_PORT}/${POSTGRES_DB}'
       GOTRUE_SITE_URL: '${SERVICE_URL_SUPABASEKONG}'
       GOTRUE_URI_ALLOW_LIST: '${ADDITIONAL_REDIRECT_URLS}'
       GOTRUE_DISABLE_SIGNUP: '${DISABLE_SIGNUP}'
@@ -102,8 +100,7 @@ services:
       GOTRUE_SMS_AUTOCONFIRM: '${ENABLE_PHONE_AUTOCONFIRM}'
     networks:
       default:
-        aliases:
-          - auth
+        aliases: [auth]
 
   supabase-meta:
     image: '${SUPABASE_META_IMAGE}'
@@ -113,15 +110,14 @@ services:
         condition: service_healthy
     environment:
       PG_META_PORT: '8080'
-      PG_META_DB_HOST: '${POSTGRES_HOSTNAME}'
+      PG_META_DB_HOST: 'db'
       PG_META_DB_PORT: '${POSTGRES_PORT}'
       PG_META_DB_NAME: '${POSTGRES_DB}'
       PG_META_DB_USER: supabase_admin
       PG_META_DB_PASSWORD: '${SERVICE_PASSWORD_POSTGRES}'
     networks:
       default:
-        aliases:
-          - meta
+        aliases: [meta]
 
   supabase-kong:
     image: '${SUPABASE_KONG_IMAGE}'
@@ -139,6 +135,8 @@ services:
     ports:
       - '${KONG_HTTP_PORT}:8000'
     environment:
+      SERVICE_URL_SUPABASEKONG_8000: '${SERVICE_URL_SUPABASEKONG_8000}'
+      JWT_SECRET: '${SERVICE_PASSWORD_JWT}'
       KONG_DATABASE: 'off'
       KONG_DECLARATIVE_CONFIG: /home/kong/kong.yml
       KONG_DNS_ORDER: LAST,A,CNAME
@@ -149,9 +147,16 @@ services:
       SUPABASE_SERVICE_KEY: '${SERVICE_SUPABASESERVICE_KEY}'
       DASHBOARD_USERNAME: '${SERVICE_USER_ADMIN}'
       DASHBOARD_PASSWORD: '${SERVICE_PASSWORD_ADMIN}'
+      SUPABASE_SECRET_KEY: ''
+      SUPABASE_PUBLISHABLE_KEY: ''
+      SERVICE_ROLE_KEY_ASYMMETRIC: ''
+      ANON_KEY_ASYMMETRIC: ''
     volumes:
       - ./volumes/api/kong.yml:/home/kong/temp.yml:ro
       - ./volumes/api/kong-entrypoint.sh:/home/kong/kong-entrypoint.sh:ro
+    networks:
+      default:
+        aliases: [supabase-kong]
 
   supabase-studio:
     image: '${SUPABASE_STUDIO_IMAGE}'
@@ -174,7 +179,7 @@ services:
       HOSTNAME: 0.0.0.0
       STUDIO_PG_META_URL: http://meta:8080
       POSTGRES_PASSWORD: '${SERVICE_PASSWORD_POSTGRES}'
-      POSTGRES_HOST: '${POSTGRES_HOST}'
+      POSTGRES_HOST: 'db'
       CURRENT_CLI_VERSION: '${STUDIO_CLI_VERSION}'
       DEFAULT_ORGANIZATION_NAME: '${STUDIO_DEFAULT_ORGANIZATION}'
       DEFAULT_PROJECT_NAME: '${STUDIO_DEFAULT_PROJECT}'
@@ -188,8 +193,7 @@ services:
       OPENAI_API_KEY: '${OPENAI_API_KEY}'
     networks:
       default:
-        aliases:
-          - studio
+        aliases: [studio]
 
 volumes:
   supabase-db-data:
