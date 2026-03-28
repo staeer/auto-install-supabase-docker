@@ -1,2 +1,1 @@
--- PLACEHOLDER_REPLACE_ME
--- Замени этот файл своим проверенным SQL из рабочего стека перед установкой.
+-- placeholder: replace with verified realtime.sql
