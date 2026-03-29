@@ -201,6 +201,7 @@ services:
       default:
         aliases: [studio]
 
+
 volumes:
   supabase-db-data:
   supabase-db-config:

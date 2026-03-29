@@ -23,4 +23,4 @@ if [[ "$REMOVE_DIR" =~ ^([yY][eE][sS]|[yY])$ ]]; then
   rm -rf "$INSTALL_DIR"
 fi
 
-echo "Готово"
+echo "Готово!"
