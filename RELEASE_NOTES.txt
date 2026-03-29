@@ -1,0 +1,9 @@
+auto-install-supabase-docker — release archive
+
+Included:
+- full source archive provided by user
+- updated README.md aligned with install.sh and docker-compose.yml.example
+
+Notes:
+- README documents actual installer behavior, access details after install, ports, .env usage, and where PostgreSQL data is stored.
+- Existing project files are otherwise kept as-is.
