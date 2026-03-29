@@ -99,4 +99,3 @@ sudo docker compose logs -f supabase-meta
 
 - Внешний доступ идёт через Kong на порту `8000`.
 - Studio публикуется только локально на `127.0.0.1:3000`.
-- Если `supabase-meta` был unhealthy в старой версии, обнови шаблон compose до `0.2.1`.
