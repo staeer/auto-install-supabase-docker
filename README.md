@@ -44,13 +44,14 @@ sudo bash install.sh
 ## Удаление
 
 ```bash
+
 sudo bash uninstall.sh
 ```
 
 Или для другого пути:
 
 ```bash
-rm -rf ~/auto-install-supabase-docker
+
 sudo bash uninstall.sh /opt/supabase
 ```
 
