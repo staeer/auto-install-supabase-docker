@@ -269,12 +269,14 @@ sudo docker compose logs -f auth
 ## Удаление
 
 ```bash
+cd ~/auto-install-supabase-docker
 sudo bash uninstall.sh
 ```
 
 Для другого пути установки:
 
 ```bash
+cd ~/auto-install-supabase-docker
 sudo bash uninstall.sh /opt/supabase
 ```
 
