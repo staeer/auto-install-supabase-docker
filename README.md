@@ -1,6 +1,6 @@
 # auto-install-supabase-docker для Ubuntu
 
-Интерактивный установщик упрощённого self-hosted Supabase через Docker Compose для Ubuntu. 
+Интерактивный установщик упрощённого self-hosted Supabase через Docker Compose для Ubuntu.
 
 ## Релиз v0.2.5
 
@@ -75,38 +75,69 @@ sudo bash install.sh
 /opt/supabase/.env
 ```
 
-Посмотреть параметры:
+Посмотреть все параметры:
 
 ```bash
 cd /opt/supabase
 cat .env
 ```
 
-Или коротко:
+## Доступы после установки
+
+## Важно
+
+Для корректной работы копирования ключей в Studio рекомендуется открывать интерфейс через домен. Если копирование не срабатывает, ключи можно взять вручную из файла `.env` в директории установки.
+
+### Быстро показать основные доступы
 
 ```bash
-grep -E 'STACK_VERSION|INSTALL_DIR|POSTGRES|KONG|STUDIO|SERVICE_|JWT|API_EXTERNAL_URL|DISABLE_SIGNUP' /opt/supabase/.env
+sudo grep -E 'DB_PUBLIC_PORT|POSTGRES_DB|SERVICE_PASSWORD_POSTGRES|SERVICE_USER_ADMIN|SERVICE_PASSWORD_ADMIN|SERVICE_URL_SUPABASEKONG|API_EXTERNAL_URL|SERVICE_SUPABASEANON_KEY|SERVICE_SUPABASESERVICE_KEY' /opt/supabase/.env
 ```
-
-## Доступы после установки
 
 ### PostgreSQL
 
-Смотри в `.env`:
+#### Подключение снаружи сервера
 
-- `DB_PUBLIC_PORT`
-- `POSTGRES_DB`
-- `SERVICE_PASSWORD_POSTGRES`
+Для подключения из pgAdmin, DBeaver, n8n или другого внешнего клиента использовать:
 
-Подключение снаружи:
+- Host: IP сервера
+- Port: `DB_PUBLIC_PORT`
+- Database: `POSTGRES_DB`
+- User: `postgres`
+- Password: `SERVICE_PASSWORD_POSTGRES`
 
-- host: IP сервера
-- port: `DB_PUBLIC_PORT`
-- database: `POSTGRES_DB`
-- user: `postgres`
-- password: `SERVICE_PASSWORD_POSTGRES`
+Пример:
 
-Внутри docker-сети БД доступна как `db`.
+```text
+Host: 192.168.0.18
+Port: 6543
+Database: postgres
+User: postgres
+Password: <значение SERVICE_PASSWORD_POSTGRES из .env>
+```
+
+Показать только данные для подключения к PostgreSQL:
+
+```bash
+sudo grep -E 'DB_PUBLIC_PORT|POSTGRES_DB|SERVICE_PASSWORD_POSTGRES' /opt/supabase/.env
+```
+
+Важно:
+
+- пользователь PostgreSQL всегда `postgres`
+- `SERVICE_USER_ADMIN` — это не пользователь базы
+- для внешнего подключения использовать IP сервера и внешний порт
+- `POSTGRES_HOST=db` используется только внутри docker-сети
+
+#### Подключение внутри Docker Compose сети
+
+Для сервисов внутри compose-сети использовать:
+
+- Host: `db`
+- Port: `5432`
+- Database: `POSTGRES_DB`
+- User: `postgres`
+- Password: `SERVICE_PASSWORD_POSTGRES`
 
 ### API / Kong
 
@@ -128,9 +159,18 @@ http://IP_СЕРВЕРА:8000
 https://ВАШ_ДОМЕН
 ```
 
+Показать только адреса API:
+
+```bash
+sudo grep -E 'KONG_HTTP_PORT|SERVICE_URL_SUPABASEKONG|API_EXTERNAL_URL' /opt/supabase/.env
+```
+
 ### Studio
 
-Studio открывается только локально на сервере:
+Studio открывается:
+
+- через домен, если он привязан
+- локально на сервере:
 
 ```bash
 http://127.0.0.1:3000
@@ -138,10 +178,16 @@ http://127.0.0.1:3000
 
 ### Dashboard admin
 
-Смотри в `.env`:
+Для входа в Studio / dashboard использовать:
 
-- `SERVICE_USER_ADMIN`
-- `SERVICE_PASSWORD_ADMIN`
+- User: `SERVICE_USER_ADMIN`
+- Password: `SERVICE_PASSWORD_ADMIN`
+
+Показать только данные dashboard admin:
+
+```bash
+sudo grep -E 'SERVICE_USER_ADMIN|SERVICE_PASSWORD_ADMIN' /opt/supabase/.env
+```
 
 ### JWT / ключи
 
@@ -151,6 +197,21 @@ http://127.0.0.1:3000
 - `SERVICE_SUPABASEANON_KEY`
 - `SERVICE_SUPABASESERVICE_KEY`
 - `JWT_EXPIRY`
+
+Показать только ключи:
+
+```bash
+sudo grep -E 'SERVICE_PASSWORD_JWT|SERVICE_SUPABASEANON_KEY|SERVICE_SUPABASESERVICE_KEY|JWT_EXPIRY' /opt/supabase/.env
+```
+
+### Что есть что
+
+- `postgres` — пользователь базы PostgreSQL
+- `SERVICE_PASSWORD_POSTGRES` — пароль пользователя PostgreSQL
+- `SERVICE_USER_ADMIN` — логин Studio / dashboard
+- `SERVICE_PASSWORD_ADMIN` — пароль Studio / dashboard
+- `SERVICE_SUPABASEANON_KEY` — anon API key
+- `SERVICE_SUPABASESERVICE_KEY` — service API key
 
 ## Что копируется в директорию установки
 
