@@ -2,9 +2,9 @@
 
 Интерактивный установщик упрощённого self-hosted Supabase через Docker Compose.
 
-## Что ставится
+## Релиз v0.2.5
 
-Устанавливаются сервисы:
+Что входит в стек:
 
 - PostgreSQL
 - PostgREST
@@ -13,22 +13,13 @@
 - Kong
 - Studio
 
+Что изменено в релизе:
 
-
-## Что важно
-
-- наружу публикуются только:
-  - `Postgres` на настраиваемом внешнем порту
-  - `Kong/API` на настраиваемом внешнем порту
-- `Studio` публикуется только локально на `127.0.0.1:3000`
-- `Kong` использует файлы:
-  - `volumes/api/kong.yml`
-  - `volumes/api/kong-entrypoint.sh`
-- SQL-файлы из `volumes/db/*.sql` копируются в директорию установки и используются при инициализации БД
-- после установки выполняются:
-  - `docker compose config`
-  - `docker compose pull`
-  - `docker compose up -d`
+- added `restart: unless-stopped` for all services
+- kept fixes for `install.sh`, `uninstall.sh` and `docker-compose.yml.example`
+- Kong starts through `volumes/api/kong-entrypoint.sh`
+- Studio stays local-only on server
+- updated README.md
 
 ## Установка
 
@@ -41,96 +32,73 @@ sudo bash install.sh
 
 ## Что спросит установщик
 
-Установщик по шагам спросит:
+Установщик спросит:
 
 - режим доступа:
   - `1` — домен + reverse proxy + HTTPS
   - `2` — прямой доступ по IP:порт
 - домен Supabase или IP/hostname сервера
-- папку установки
+- директорию установки
 - имя базы PostgreSQL
-- внешний порт Postgres
-- внешний порт API/Kong
+- внешний порт PostgreSQL
+- внешний порт API / Kong
 - JWT expiry
-- пароль Postgres
+- пароль PostgreSQL
 - JWT secret
-- логин Dashboard Basic Auth
-- пароль Dashboard Basic Auth
+- логин dashboard admin
+- пароль dashboard admin
 - разрешить ли регистрацию новых пользователей
 
 ## Значения по умолчанию
 
 По умолчанию используются:
 
-- папка установки: `/opt/supabase`
+- директория установки: `/opt/supabase`
 - база PostgreSQL: `postgres`
-- внешний порт Postgres: `6543`
-- внешний порт API/Kong: `8000`
-- локальный порт Studio: `3000`
+- внешний порт PostgreSQL: `6543`
+- внешний порт API / Kong: `8000`
+- Studio локально на сервере: `127.0.0.1:3000`
 - JWT expiry: `3600`
+- dashboard admin user: `admin`
 
 ## После установки
 
-Открывай:
-
-- публичный API:
-  - `http://IP_ИЛИ_ДОМЕН:8000`
-  - или домен через твой reverse proxy, если выбран режим `domain`
-- Studio локально на сервере:
-  - `http://127.0.0.1:3000`
-
-## Где брать данные после установки
-
-После установки основная рабочая директория — это папка установки:
+Основная директория установки:
 
 ```bash
 /opt/supabase
 ```
 
-Если при установке указывался другой путь — используй его.
-
-### Что лежит в директории установки
-
-В директории установки находятся:
-
-- `.env` — все основные параметры доступа и настройки
-- `docker-compose.yml` — итоговый compose-файл
-- `volumes/api/` — файлы конфигурации Kong
-- `volumes/db/` — SQL-файлы инициализации
-- Docker volumes с данными контейнеров создаются отдельно Docker'ом
-
-### Главный файл с доступами
-
-Все основные данные после установки бери из:
+Главный файл с параметрами:
 
 ```bash
 /opt/supabase/.env
 ```
 
-Посмотреть:
+Посмотреть параметры:
 
 ```bash
 cd /opt/supabase
 cat .env
 ```
 
-Или так:
+Или коротко:
 
 ```bash
-grep -E 'POSTGRES|KONG|STUDIO|SERVICE_|JWT|API_EXTERNAL_URL' /opt/supabase/.env
+grep -E 'STACK_VERSION|INSTALL_DIR|POSTGRES|KONG|STUDIO|SERVICE_|JWT|API_EXTERNAL_URL|DISABLE_SIGNUP' /opt/supabase/.env
 ```
 
-## Какие данные где смотреть
+## Доступы после установки
 
-### Доступ к PostgreSQL
+### PostgreSQL
 
 Смотри в `.env`:
 
-- `DB_PUBLIC_PORT` — внешний порт PostgreSQL
-- `POSTGRES_DB` — имя базы
-- `SERVICE_PASSWORD_POSTGRES` — пароль PostgreSQL
+- `DB_PUBLIC_PORT`
+- `POSTGRES_DB`
+- `SERVICE_PASSWORD_POSTGRES`
 
-Подключение с хоста/сети:
+Подключение снаружи:
 
 - host: IP сервера
 - port: `DB_PUBLIC_PORT`
@@ -138,69 +106,95 @@ grep -E 'POSTGRES|KONG|STUDIO|SERVICE_|JWT|API_EXTERNAL_URL' /opt/supabase/.env
 - user: `postgres`
 - password: `SERVICE_PASSWORD_POSTGRES`
 
-Важно:
-внутри docker-сети сервис БД доступен как `db`, а снаружи — по IP сервера и внешнему порту `DB_PUBLIC_PORT`.
+Внутри docker-сети БД доступна как `db`.
 
-### Доступ к API / Kong
+### API / Kong
 
 Смотри в `.env`:
 
-- `KONG_HTTP_PORT` — внешний порт API
-- `SERVICE_URL_SUPABASEKONG` — основной URL
-- `API_EXTERNAL_URL` — внешний API URL
+- `KONG_HTTP_PORT`
+- `SERVICE_URL_SUPABASEKONG`
+- `API_EXTERNAL_URL`
 
-Обычно это:
+Если выбран режим `ip`, публичный URL будет таким:
 
 ```bash
 http://IP_СЕРВЕРА:8000
 ```
 
-или домен, если ставилось в режиме domain.
+Если выбран режим `domain`, публичный URL будет таким:
 
-### Доступ к Studio
+```bash
+https://ВАШ_ДОМЕН
+```
 
-Studio публикуется только локально на сервере:
+### Studio
+
+Studio открывается только локально на сервере:
 
 ```bash
 http://127.0.0.1:3000
 ```
 
-Порт берётся из `STUDIO_PORT`, но в текущем установщике он по факту фиксируется как `3000`.
-
-### Логин в Dashboard / Studio Basic Auth
+### Dashboard admin
 
 Смотри в `.env`:
 
 - `SERVICE_USER_ADMIN`
 - `SERVICE_PASSWORD_ADMIN`
 
-Это логин и пароль для dashboard basic auth через Kong.
-
-### JWT / ключи Supabase
+### JWT / ключи
 
 Смотри в `.env`:
 
-- `SERVICE_PASSWORD_JWT` — JWT secret
-- `SERVICE_SUPABASEANON_KEY` — anon key
-- `SERVICE_SUPABASESERVICE_KEY` — service_role key
-- `JWT_EXPIRY` — срок жизни JWT
+- `SERVICE_PASSWORD_JWT`
+- `SERVICE_SUPABASEANON_KEY`
+- `SERVICE_SUPABASESERVICE_KEY`
+- `JWT_EXPIRY`
 
-Именно эти значения нужны для клиентов, интеграций и API.
+## Что копируется в директорию установки
 
-## Где лежат реальные данные PostgreSQL
+`install.sh` копирует в директорию установки только это:
 
-Файлы самой базы лежат не в `.env` и не в `volumes/db/`.
+- `.env`
+- `docker-compose.yml`
+- `volumes/db/*.sql`
+- `volumes/api/kong.yml`
+- `volumes/api/kong-entrypoint.sh`
 
-`volumes/db/` в проекте — это только SQL-файлы инициализации.
+Итоговая структура после установки:
 
-Реальные данные PostgreSQL хранятся в Docker volume:
+```text
+/opt/supabase/
+├── .env
+├── docker-compose.yml
+└── volumes/
+    ├── api/
+    │   ├── kong-entrypoint.sh
+    │   └── kong.yml
+    └── db/
+        ├── _supabase.sql
+        ├── jwt.sql
+        ├── logs.sql
+        ├── pooler.sql
+        ├── realtime.sql
+        ├── roles.sql
+        └── webhooks.sql
+```
+
+## Где лежат данные
+
+Важно:
+
+- `volumes/db/*.sql` — это init-скрипты
+- реальные данные PostgreSQL лежат в Docker volumes
+
+Имена volumes:
 
 - `supabase-db-data`
 - `supabase-db-config`
 
-Это задано в `docker-compose.yml`.
-
-Посмотреть volume'ы:
+Посмотреть volumes:
 
 ```bash
 docker volume ls | grep supabase
@@ -212,33 +206,13 @@ docker volume ls | grep supabase
 docker volume inspect supabase-db-data
 ```
 
-## Что важно понимать
-
-- `.env` — это копия всех введённых параметров установки
-- `volumes/db/*.sql` — это не живая база, а init-скрипты
-- живая база хранится в Docker volume `supabase-db-data`
-- для подключения к базе, Studio и API после установки почти всё берётся из `.env`
-
-## Быстрые команды
-
-Показать доступы:
-
-```bash
-cd /opt/supabase
-grep -E 'POSTGRES_DB|DB_PUBLIC_PORT|KONG_HTTP_PORT|STUDIO_PORT|SERVICE_USER_ADMIN|SERVICE_PASSWORD_ADMIN|SERVICE_PASSWORD_POSTGRES|SERVICE_SUPABASEANON_KEY|SERVICE_SUPABASESERVICE_KEY|SERVICE_URL_SUPABASEKONG' .env
-```
+## Проверка
 
 Проверить контейнеры:
 
 ```bash
 cd /opt/supabase
 sudo docker compose ps
-```
-
-Посмотреть volume базы:
-
-```bash
-docker volume inspect supabase-db-data
 ```
 
 Логи Kong:
@@ -259,37 +233,49 @@ sudo docker compose logs -f supabase-meta
 
 ```bash
 cd /opt/supabase
-sudo docker compose logs -f auth
+sudo docker compose logs -f supabase-auth
 ```
-
-## Сетевые порты
-
-- `${DB_PUBLIC_PORT}` → Postgres `5432`
-- `${KONG_HTTP_PORT}` → Kong `8000`
-- `127.0.0.1:${STUDIO_PORT}` → Studio `3000`
 
 ## Удаление
 
-```bash
-cd ~/auto-install-supabase-docker
-sudo bash uninstall.sh
-```
-
-Для другого пути установки:
+Запускать нужно по пути к самому скрипту:
 
 ```bash
-cd ~/auto-install-supabase-docker
-sudo bash uninstall.sh /opt/supabase
+sudo bash ~/auto-install-supabase-docker/uninstall.sh
 ```
 
-Удаление делает:
+Или с указанием своей директории установки:
 
-- `docker compose down -v --remove-orphans`
-- по подтверждению удаляет директорию установки целиком
+```bash
+sudo bash ~/auto-install-supabase-docker/uninstall.sh /opt/supabase
+```
 
-## Обязательные файлы в репозитории
+Что делает удаление:
+
+- спрашивает, удалять ли Docker-образы этого стека
+- останавливает и удаляет контейнеры
+- удаляет volumes
+- удаляет orphan-контейнеры
+- по подтверждению удаляет директорию установки
+
+## Важно
+
+- наружу публикуются только PostgreSQL и Kong/API
+- Studio публикуется только на `127.0.0.1:${STUDIO_PORT}`
+- реальные доступы после установки всегда смотри в `/opt/supabase/.env`
+- source of truth после установки — сгенерированный `.env`, а не `.env.example`
+
+## Файлы, которые реально используются установщиком
+
+Обязательные файлы:
 
 ```text
+install.sh
+uninstall.sh
+docker-compose.yml.example
+.env.example
+VERSION
+CHANGELOG.md
 volumes/api/kong.yml
 volumes/api/kong-entrypoint.sh
 volumes/db/_supabase.sql
@@ -299,19 +285,6 @@ volumes/db/pooler.sql
 volumes/db/realtime.sql
 volumes/db/roles.sql
 volumes/db/webhooks.sql
-docker-compose.yml.example
-install.sh
-uninstall.sh
 ```
 
-Если одного из обязательных файлов нет, установщик остановится с ошибкой.
-
-## Примечание по версиям
-
-В репозитории сейчас есть рассинхрон версий между файлами:
-
-- `install.sh` — `0.2.4`
-- `CHANGELOG.md` — содержит `0.2.5`
-- `.env.example` — `0.1.6`
-
-Этот README описывает текущее фактическое поведение установщика и compose-файлов, а не красивую легенду о том, что всё синхронно. Красивые легенды — это к маркетингу, не к установщику.
+Дополнительные файлы в репозитории есть, но текущий `install.sh` их в директорию установки не копирует.

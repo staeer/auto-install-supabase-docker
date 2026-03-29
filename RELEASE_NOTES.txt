@@ -1,11 +1,31 @@
-auto-install-supabase-docker — release archive
+auto-install-supabase-docker v0.2.5
 
+- updated README.md to match the current repository files
+- fixed .env.example PostgreSQL host values to use db
+- cleaned unused directories from volumes/
+- kept simplified install flow
+- kept simplified uninstall flow
+- kept optional image removal in uninstall
+- Studio remains local-only on 127.0.0.1
+- stack is deployed via docker compose
 
-Included:
-- full source archive provided by user
-- updated README.md aligned with install.sh and docker-compose.yml.example
+Release contents:
+- README.md
+- CHANGELOG.md
+- VERSION
+- RELEASE_NOTES.txt
+- .env.example
+- docker-compose.yml.example
+- install.sh
+- uninstall.sh
+- volumes/api/*
+- volumes/db/*
 
+Repository cleanup:
+- removed unused directories from volumes/
+- kept only directories used by current install flow
 
 Notes:
-- README documents actual installer behavior, access details after install, ports, .env usage, and where PostgreSQL data is stored.
-- Existing project files are otherwise kept as-is.
+- PostgreSQL connection values are taken from the generated .env after install
+- Studio is available only locally on the server
+- real PostgreSQL data is stored in Docker volumes
