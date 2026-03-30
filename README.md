@@ -1,4 +1,4 @@
-# auto-install-supabase-docker
+# auto-install-supabase-docker для Ubuntu
 
 Интерактивный установщик облегчённой self-hosted Supabase-сборки через Docker Compose.
 
