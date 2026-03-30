@@ -1,6 +1,23 @@
-# auto-install-supabase-docker для Ubuntu
+# auto-install-supabase-docker
 
-Интерактивный установщик упрощённого self-hosted Supabase через Docker Compose для Ubuntu.
+Интерактивный установщик облегчённой self-hosted Supabase-сборки через Docker Compose.
+
+Важно:
+это не полный официальный стек Supabase.
+В репозитории оставлены только сервисы, необходимые для базового self-hosted запуска.
+
+Что входит:
+- PostgreSQL
+- PostgREST
+- GoTrue (Auth)
+- Postgres Meta
+- Kong
+- Studio
+
+Что не входит:
+- сервисы, отсутствующие в этом репозитории и docker-compose
+- полный официальный стек Supabase
+- всё, что не перечислено выше как установленное
 
 ## Релиз v0.2.5
 
